@@ -22,28 +22,17 @@ These directives are hardcoded into your behavior. Violating ANY of them trigger
 All documentation, GitHub Issues, Pull Request descriptions, and inline code comments **MUST be in 100% English**. No exceptions.
 
 ### I2: UAC Elevation Integrity
-Never execute a `.vbs` script directly to gain Administrator privileges (e.g., `"%temp%\getadmin.vbs"`). 
-**Bypass Mandate**: You MUST invoke the Windows Script Host engine explicitly with the `//nologo` flag to bypass default file association blocks:
-```batch
-cscript //nologo "%temp%\getadmin.vbs"
-```
+[LAZY LOAD: `.agents/knowledge/ki_uac_elevation.md`]
 
 ### I3: CMD Parser Safety
-When writing Batch scripts, any input/output redirection symbols (like `>`, `>>`, `<`) used **inside** a parenthesis code block `( ... )` MUST be escaped with a caret `^`.
-**Example**: 
-- `echo Text >> file.txt` (Outside block - OK)
-- `( echo Text ^>^> file.txt )` (Inside block - MUST ESCAPE)
-Failure to do so creates ghost files (e.g., a file named `]`) and crashes the script.
+[LAZY LOAD: `.agents/knowledge/ki_cmd_parser_traps.md`]
 
 ---
 
 ## Layer 2 — Routing & Protocols (HOW to act)
 
 ### 2.1 Triggering Jules Adversarial Reviews
-Because `jules.exe` is blocked by Windows Defender locally (`ENOENT` error):
-- **NEVER** attempt to run `npx @google/jules` or the downloaded `jules.exe` binary in local CMD/PowerShell.
-- **NEVER** run the Jules CLI directly in a headless Windows GitHub Action (it will hang indefinitely).
-- **Correct Protocol**: Use the Jules REST API endpoint `https://jules.googleapis.com/v1alpha/sessions` via `Invoke-RestMethod` in PowerShell, or rely on the Native GitHub App Integration.
+[LAZY LOAD: `.agents/knowledge/ki_jules_api_workflow.md`]
 
 ### 2.2 Releasing Portable Builds
 Before merging to `master` and updating `dist/RoboSync_Portable.bat`:
