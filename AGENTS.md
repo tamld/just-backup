@@ -38,3 +38,26 @@ All documentation, GitHub Issues, Pull Request descriptions, and inline code com
 Before merging to `master` and updating `dist/RoboSync_Portable.bat`:
 1. Run the `test_harness.ps1` script to verify 55/55 test steps.
 2. Manually ensure that all UI/Modular changes are correctly synchronized from the `src/` modular folders into the single monolithic Portable file.
+
+---
+
+## Layer 3 — Knowledge Schema Contract (File Type Consistency)
+
+To prevent Context Rot and data inconsistency, all Agents contributing to the `.agents/knowledge/` Project Base MUST adhere to this strict schema contract when selecting file types:
+
+### 3.1 Markdown (`.md`)
+- **Context:** Standard operating procedures, rich explanations, workflows, or complex design patterns.
+- **Detail Level:** Fully Detailed (Verbose).
+- **Mandatory Schema:** Must include sections for `# Context & Problem`, `## Solution`, and `## Verification Checklist`.
+
+### 3.2 JSON Lines (`.jsonl`)
+- **Context:** Ledgers, independent events, historical logs (e.g., list of newly discovered parser bugs or sequential decisions).
+- **Detail Level:** Extremely Concise. Optimized for scanning massive lists of records without consuming excessive tokens.
+
+### 3.3 JSON (`.json`)
+- **Context:** Static configurations, deterministic payload templates, strict machine-readable hierarchies.
+- **Detail Level:** Structurally Strict. Use when the data must be parsed programmatically without ambiguity.
+
+### 3.4 CSV (`.csv`)
+- **Context:** Large 1-to-1 mapping tables or matrices (e.g., Error Code to Solution matrices).
+- **Detail Level:** Tabular. Maximum token efficiency for categorical data.
