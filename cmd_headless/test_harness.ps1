@@ -137,6 +137,14 @@ foreach ($file in @($Target, $DevEntry)) {
     $fname = Split-Path $file -Leaf
     if (-not (Test-Path $file)) { continue }
     $content = Get-Content $file -Raw
+    
+    # If checking DevEntry, combine with lib files so we can find functions
+    if ($file -eq $DevEntry -and (Test-Path $DevLibDir)) {
+        foreach ($lib in Get-ChildItem "$DevLibDir\*.bat") {
+            $content += "`n" + (Get-Content $lib.FullName -Raw)
+        }
+    }
+
     $lines = Get-Content $file
 
     # 1B.1: UAC uses cscript //nologo (not direct .vbs execution)
