@@ -1,5 +1,5 @@
 use std::process::{Command, ExitStatus};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct RobocopyResult {
@@ -14,7 +14,10 @@ pub fn run_robocopy(
     log_file: &Path,
     is_incremental: bool,
 ) -> Result<RobocopyResult, std::io::Error> {
-    let mut cmd = Command::new("robocopy");
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+    let robocopy_path = PathBuf::from(system_root).join("System32").join("robocopy.exe");
+
+    let mut cmd = Command::new(&robocopy_path);
 
     // Convert paths to string safely, assuming they might have Unicode
     // The Command::arg on Windows properly handles Unicode strings.
