@@ -212,6 +212,7 @@ exit /b
     net use "\\!_ip!\IPC$" "!_pass!" /user:"!_user!" >nul 2>&1
     if !errorlevel! equ 0 (
         set "NET_MAP_OK=1"
+        set "NET_STATUS=CONNECTED"
         echo  [OK] Authentication successful.
     ) else (
         echo  [!!] Authentication failed.
@@ -239,6 +240,8 @@ exit /b
 :: ================================================================
 :fn_cleanup_all
     net use * /delete /y >nul 2>&1
+    set "NET_STATUS=NOT_CONNECTED"
+    set "NET_MAP_OK="
     echo  [--] All network connections cleared.
     :: Restore DHCP if in Direct Cable mode
     if defined NET_IFACE call :fn_restore_dhcp
@@ -289,4 +292,44 @@ exit /b
 
     set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
     set "INPUT_OK=1"
+    goto :eof
+
+:: ================================================================
+:: FUNCTION: fn_get_connection_status
+:: DESC: Check current network connection status
+:: SETS  : NET_STATUS = CONNECTED / NOT_CONNECTED
+:: ================================================================
+:fn_get_connection_status
+    set "NET_STATUS=NOT_CONNECTED"
+    if not defined NETWORK_PATH goto :eof
+    if "!NETWORK_PATH!"=="" goto :eof
+    if not defined NET_MAP_OK goto :eof
+    if "!NET_MAP_OK!"=="1" (
+        set "NET_STATUS=CONNECTED"
+    )
+    goto :eof
+
+:: ================================================================
+:: FUNCTION: fn_show_status
+:: DESC: Display current network connection info
+:: ================================================================
+:fn_show_status
+    call :fn_get_connection_status
+    echo.
+    echo  [>>] NETWORK STATUS
+    echo  ------------------------------------------------------------
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Status   : CONNECTED
+        echo  [--] Target   : !NETWORK_PATH!
+        echo  [--] User     : !NET_USER!
+        echo  [--] Mode     : !NET_TYPE!
+        if defined NET_IFACE (
+            echo  [--] Interface: !NET_IFACE! ^(Static IP: !NET_LOCAL_IP!^)
+        )
+    ) else (
+        echo  [--] Status   : NOT CONNECTED
+        echo  [--] Use Network Setup to configure connection.
+    )
+    echo  ------------------------------------------------------------
+    echo.
     goto :eof
