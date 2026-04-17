@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use crate::models::identity::{Machine, User, Backup};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
