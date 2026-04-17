@@ -1,6 +1,7 @@
 # ================================================================
-# TEST HARNESS v2.0 — Comprehensive CMD Batch Verification
+# TEST HARNESS v3.0 — Comprehensive CMD Batch Verification
 # PURPOSE: Static lint + Safe runtime + WORST-CASE edge cases
+#          + v2.0 refactor validation + drift detection
 #          PowerShell is BANNED from production, ESSENTIAL for testing.
 #
 # USAGE:  powershell -ExecutionPolicy Bypass -File test_harness.ps1
@@ -13,6 +14,7 @@ $script:FailCount = 0
 $script:WarnCount = 0
 $Target = "$PSScriptRoot\dist\RoboSync_Portable.bat"
 $DevEntry = "$PSScriptRoot\RoboSync.bat"
+$DevLibDir = "$PSScriptRoot\lib"
 $Sandbox = "$env:TEMP\rs_test_sandbox_$(Get-Random)"
 
 function Write-Result($Name, $Pass, $Detail = "", $Warn = $false) {
@@ -124,6 +126,90 @@ foreach ($file in @($Target, $DevEntry)) {
         }
     }
     Write-Result "[$fname] All set assignments quoted" ($unquotedSets.Count -eq 0) "Unquoted: $($unquotedSets -join ', ')"
+}
+
+# ================================================================
+# SECTION 1B: v2.0 SPECIFIC CHECKS
+# ================================================================
+Write-Host "`n=== SECTION 1B: v2.0 SPECIFIC CHECKS ===" -ForegroundColor Cyan
+
+foreach ($file in @($Target, $DevEntry)) {
+    $fname = Split-Path $file -Leaf
+    if (-not (Test-Path $file)) { continue }
+    $content = Get-Content $file -Raw
+    
+    # If checking DevEntry, combine with lib files so we can find functions
+    if ($file -eq $DevEntry -and (Test-Path $DevLibDir)) {
+        foreach ($lib in Get-ChildItem "$DevLibDir\*.bat") {
+            $content += "`n" + (Get-Content $lib.FullName -Raw)
+        }
+    }
+
+    $lines = Get-Content $file
+
+    # 1B.1: UAC uses cscript //nologo (not direct .vbs execution)
+    $hasCscript = $content -match 'cscript //nologo'
+    $hasDirectVbs = $content -match '"%temp%\\[^"]*\.vbs"[\s]*$' -and $content -notmatch 'cscript'
+    Write-Result "[$fname] UAC uses cscript //nologo" $hasCscript
+    Write-Result "[$fname] No direct .vbs execution" (-not $hasDirectVbs)
+
+    # 1B.2: NET_STATUS variable is initialized
+    $hasNetStatusInit = $content -match 'set "NET_STATUS=NOT_CONNECTED"'
+    Write-Result "[$fname] NET_STATUS initialized" $hasNetStatusInit
+
+    # 1B.3: NET_STATUS set to CONNECTED on map success
+    $hasNetStatusConnect = $content -match 'NET_STATUS=CONNECTED'
+    Write-Result "[$fname] NET_STATUS set on connect" $hasNetStatusConnect
+
+    # 1B.4: displayMainMenu label exists (display/logic separation)
+    $hasDisplayMain = $content -match ':displayMainMenu'
+    Write-Result "[$fname] Menu display/logic separated" $hasDisplayMain
+
+    # 1B.5: Network Setup menu exists
+    $hasNetworkMenu = $content -match ':NetworkMenu'
+    Write-Result "[$fname] Network Setup menu exists" $hasNetworkMenu
+
+    # 1B.6: fn_status_bar exists
+    $hasStatusBar = $content -match ':fn_status_bar'
+    Write-Result "[$fname] fn_status_bar exists" $hasStatusBar
+}
+
+# ================================================================
+# SECTION 1C: DRIFT DETECTION (Dev vs Portable)
+# ================================================================
+Write-Host "`n=== SECTION 1C: DRIFT DETECTION ===" -ForegroundColor Cyan
+
+if ((Test-Path $Target) -and (Test-Path $DevEntry)) {
+    $devContent = Get-Content $DevEntry -Raw
+    $portContent = Get-Content $Target -Raw
+
+    # Collect all lib module files for Dev
+    $allDevContent = $devContent
+    if (Test-Path $DevLibDir) {
+        foreach ($lib in Get-ChildItem "$DevLibDir\*.bat") {
+            $allDevContent += "`n" + (Get-Content $lib.FullName -Raw)
+        }
+    }
+
+    # 1C.1: Function count parity (count :fn_ labels)
+    $devFns = ([regex]::Matches($allDevContent, '(?m)^:fn_\w+')).Count
+    $portFns = ([regex]::Matches($portContent, '(?m)^:fn_\w+')).Count
+    Write-Result "Function count parity (Dev=$devFns Portable=$portFns)" ($devFns -eq $portFns) "Dev=$devFns Portable=$portFns"
+
+    # 1C.2: Version string base match (allow -portable suffix)
+    $devVer = if ($devContent -match 'APP_VERSION=v([\d.]+)') { $Matches[1] } else { "?" }
+    $portVer = if ($portContent -match 'APP_VERSION=v([\d.]+)') { $Matches[1] } else { "?" }
+    Write-Result "Version base match (Dev=$devVer Portable=$portVer)" ($devVer -eq $portVer) "Dev=v$devVer Portable=v$portVer"
+
+    # 1C.3: Menu option count parity (count choice /c options)
+    $devMainChoice = if ($devContent -match 'choice /n /c (\w+) /m "\s*Choose mode') { $Matches[1].Length } else { 0 }
+    $portMainChoice = if ($portContent -match 'choice /n /c (\w+) /m "\s*Choose mode') { $Matches[1].Length } else { 0 }
+    Write-Result "Main menu option count parity" ($devMainChoice -eq $portMainChoice) "Dev=$devMainChoice Portable=$portMainChoice"
+
+    # 1C.4: Both have NetworkMenu
+    $devHasNetMenu = $devContent -match ':NetworkMenu'
+    $portHasNetMenu = $portContent -match ':NetworkMenu'
+    Write-Result "Both have NetworkMenu" ($devHasNetMenu -and $portHasNetMenu)
 }
 
 # ================================================================

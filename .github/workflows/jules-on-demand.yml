@@ -1,0 +1,19 @@
+name: Jules On-Demand Trigger
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Command or task for Jules'
+        required: true
+        type: string
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send API Call via Jules CLI
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        run: |
+          npx -y @google/jules new --repo ${{ github.repository }} "${{ inputs.prompt }}"

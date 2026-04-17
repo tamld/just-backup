@@ -1,4 +1,4 @@
-use sysinfo::{Disks, System};
+use sysinfo::Disks;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]

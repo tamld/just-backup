@@ -38,17 +38,21 @@ chcp 65001 >nul 2>&1
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if '%errorlevel%' NEQ '0' (
     echo  Requesting Administrator privileges...
-    goto :goUAC
-) else (
-    goto :goADMIN
+    call :request_admin
+    exit /b
 )
 
-:goUAC
-    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\rs_getadmin.vbs"
-    echo UAC.ShellExecute "cmd.exe", "/c ""%~s0""", "%~dp0", "runas", 1 >> "%temp%\rs_getadmin.vbs"
-    "%temp%\rs_getadmin.vbs"
-    del "%temp%\rs_getadmin.vbs"
-    exit /B
+goto :goADMIN
+
+:request_admin
+    set "vbsFile=%temp%\rs_getadmin.vbs"
+    >"%vbsFile%" echo Set UAC = CreateObject("Shell.Application")
+    set "params=%*"
+    set "params=%params:"=\"%"
+    >>"%vbsFile%" echo UAC.ShellExecute "cmd.exe", "/c \"%~s0\" %params%", "", "runas", 1
+    cscript //nologo "%vbsFile%"
+    del "%vbsFile%"
+    exit /b
 
 :goADMIN
     pushd "%CD%"
@@ -59,30 +63,42 @@ if '%errorlevel%' NEQ '0' (
 :: ================================================================
 setlocal enabledelayedexpansion
 
-set "APP_VERSION=v1.3.0-portable"
+set "APP_VERSION=v2.0.0-portable"
 set "SCRIPT_DIR=%~dp0"
 set "LOG_DIR=%SCRIPT_DIR%logs"
+set "NET_STATUS=NOT_CONNECTED"
 
 :: ================================================================
-:: MAIN MENU (Clear Tier 2 + Tier 3 pipeline)
+:: MAIN MENU
+:: Note: Network session vars persist across backup operations.
+::       Only backup pipeline vars (Tier 2b + Tier 3) are cleared.
 :: ================================================================
 :MainMenu
+    :: --- Clear Pipeline vars (Tier 2b: per-job) ---
     set "BACKUP_MODE="
-    set "NET_TYPE="
-    set "DEST_IP="
-    set "DEST_SHARE="
-    set "NET_USER="
-    set "NET_PASS="
-    set "NETWORK_PATH="
     set "BACKUP_DEST="
-    set "NET_IFACE="
-    set "NET_LOCAL_IP="
+    set "NET_PASS="
     set "RESTORE_BASE="
+    :: --- Clear Selected (Tier 3) ---
     set "SELECTED_SRC="
     set "SELECTED_NAME="
     set "SELECTED_TYPE="
     set "FINAL_DEST="
 
+    call :displayMainMenu
+    choice /n /c 123456 /m "  Choose mode: "
+    if !errorlevel! equ 6 goto :ExitApp
+    if !errorlevel! equ 5 goto :NetworkMenu
+    if !errorlevel! equ 4 goto :ModeRestore
+    if !errorlevel! equ 3 goto :ModeLocal
+    if !errorlevel! equ 2 goto :ModePull
+    if !errorlevel! equ 1 goto :ModePush
+    goto :MainMenu
+
+:: ================================================================
+:: DISPLAY: Main Menu
+:: ================================================================
+:displayMainMenu
     call :fn_banner
 
     echo        ========================================================
@@ -90,16 +106,107 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     echo        [2] Backup PULL          - Remote to Local     : Press 2
     echo        [3] Backup LOCAL         - Local to Local      : Press 3
     echo        [4] Restore Profile      - Recover data        : Press 4
-    echo        [5] Exit                                       : Press 5
+    echo        [5] Network Setup        - Configure network   : Press 5
+    echo        [6] Exit                                       : Press 6
     echo        ========================================================
+    call :fn_status_bar
     echo.
-    choice /n /c 12345 /m "  Choose mode: "
-    if !errorlevel! equ 5 goto :ExitApp
-    if !errorlevel! equ 4 goto :ModeRestore
-    if !errorlevel! equ 3 goto :ModeLocal
-    if !errorlevel! equ 2 goto :ModePull
-    if !errorlevel! equ 1 goto :ModePush
-    goto :MainMenu
+    goto :eof
+
+:: ================================================================
+:: NETWORK SETUP MENU (Optional — user-driven)
+:: ================================================================
+:NetworkMenu
+    cls
+    echo.
+    echo  [^>^>] NETWORK SETUP
+    call :fn_separator
+    call :fn_show_status
+    call :displayNetworkMenu
+    choice /n /c 12340 /m "  Choose: "
+    if !errorlevel! equ 5 goto :MainMenu
+    if !errorlevel! equ 4 goto :NetworkShowStatus
+    if !errorlevel! equ 3 goto :NetworkDisconnect
+    if !errorlevel! equ 2 goto :NetworkConnectDHCP
+    if !errorlevel! equ 1 goto :NetworkConnectDirect
+    goto :NetworkMenu
+
+:displayNetworkMenu
+    echo.
+    echo   [1] Connect via Direct Cable ^(Static IP^)
+    echo   [2] Connect via Existing Network ^(DHCP^)
+    echo   [3] Disconnect ^& Reset
+    echo   [4] Show Connection Status
+    echo   [0] Back to Main Menu
+    echo.
+    goto :eof
+
+:NetworkConnectDirect
+    set "NET_TYPE=DIRECT"
+    call :fn_setup_direct_cable
+    if "!DIRECT_SETUP_OK!"=="0" (
+        call :fn_pause_msg "Direct cable setup failed."
+        goto :NetworkMenu
+    )
+    call :fn_input_credentials
+    if "!INPUT_OK!"=="0" (
+        call :fn_pause_msg "Invalid input."
+        goto :NetworkMenu
+    )
+    call :fn_test_connection "!DEST_IP!"
+    if "!NET_PING_OK!"=="0" (
+        call :fn_pause_msg
+        goto :NetworkMenu
+    )
+    call :fn_map_credentials "!DEST_IP!" "!NET_USER!" "!NET_PASS!"
+    set "NET_PASS="
+    if "!NET_MAP_OK!"=="0" (
+        call :fn_pause_msg
+        goto :NetworkMenu
+    )
+    set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
+    call :fn_pause_msg "[OK] Network connected successfully."
+    goto :NetworkMenu
+
+:NetworkConnectDHCP
+    set "NET_TYPE=DHCP"
+    call :fn_input_credentials
+    if "!INPUT_OK!"=="0" (
+        call :fn_pause_msg "Invalid input."
+        goto :NetworkMenu
+    )
+    call :fn_test_connection "!DEST_IP!"
+    if "!NET_PING_OK!"=="0" (
+        call :fn_pause_msg
+        goto :NetworkMenu
+    )
+    call :fn_map_credentials "!DEST_IP!" "!NET_USER!" "!NET_PASS!"
+    set "NET_PASS="
+    if "!NET_MAP_OK!"=="0" (
+        call :fn_pause_msg
+        goto :NetworkMenu
+    )
+    set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
+    call :fn_pause_msg "[OK] Network connected successfully."
+    goto :NetworkMenu
+
+:NetworkDisconnect
+    call :fn_cleanup_all
+    set "DEST_IP="
+    set "DEST_SHARE="
+    set "NET_USER="
+    set "NET_PASS="
+    set "NETWORK_PATH="
+    set "NET_TYPE="
+    call :fn_pause_msg "[OK] Disconnected. All connections cleared."
+    goto :NetworkMenu
+
+:NetworkShowStatus
+    cls
+    echo.
+    call :fn_show_status
+    call :fn_pause_msg
+    goto :NetworkMenu
 
 :: ================================================================
 :: NETWORK SETUP (Shared flow for Push/Pull/Restore-Network)
@@ -651,6 +758,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     pause
     goto :eof
 
+:fn_status_bar
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo        [Network: CONNECTED - !NETWORK_PATH!]
+    ) else (
+        echo        [Network: NOT CONNECTED]
+    )
+    goto :eof
+
 :: === NETWORK FUNCTIONS ===========================================
 
 :fn_select_network_type
@@ -779,6 +894,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
     echo  [OK] Mapped successfully.
     set "NET_MAP_OK=1"
+    set "NET_STATUS=CONNECTED"
     goto :eof
 
 :fn_unmap_credentials
@@ -790,6 +906,41 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     if defined DEST_IP call :fn_unmap_credentials "!DEST_IP!"
     if defined NET_IFACE call :fn_restore_dhcp
     set "NET_PASS="
+    set "NET_STATUS=NOT_CONNECTED"
+    set "NET_MAP_OK="
+    goto :eof
+
+:: === STATUS FUNCTIONS =============================================
+
+:fn_get_connection_status
+    set "NET_STATUS=NOT_CONNECTED"
+    if not defined NETWORK_PATH goto :eof
+    if "!NETWORK_PATH!"=="" goto :eof
+    if not defined NET_MAP_OK goto :eof
+    if "!NET_MAP_OK!"=="1" (
+        set "NET_STATUS=CONNECTED"
+    )
+    goto :eof
+
+:fn_show_status
+    call :fn_get_connection_status
+    echo.
+    echo  [^>^>] NETWORK STATUS
+    echo  ────────────────────────────────────────────────────────
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Status   : CONNECTED
+        echo  [--] Target   : !NETWORK_PATH!
+        echo  [--] User     : !NET_USER!
+        echo  [--] Mode     : !NET_TYPE!
+        if defined NET_IFACE (
+            echo  [--] Interface: !NET_IFACE! ^(Static IP: !NET_LOCAL_IP!^)
+        )
+    ) else (
+        echo  [--] Status   : NOT CONNECTED
+        echo  [--] Use Network Setup to configure connection.
+    )
+    echo  ────────────────────────────────────────────────────────
+    echo.
     goto :eof
 
 :: === DISCOVERY FUNCTIONS =========================================
