@@ -84,13 +84,13 @@ for %%M in (engine network discover ui) do (
     )
 )
 
-:: ================================================================
-:: MAIN MENU
-:: Note: Network session vars (DEST_IP, NET_USER, NETWORK_PATH,
-::       NET_STATUS, NET_TYPE, NET_IFACE, NET_LOCAL_IP) are NOT
-::       cleared here — they persist across backup operations.
-::       Only backup pipeline vars (Tier 2b + Tier 3) are cleared.
-:: ================================================================
+REM ================================================================
+REM MAIN MENU
+REM Note: Network session vars (DEST_IP, NET_USER, NETWORK_PATH,
+REM       NET_STATUS, NET_TYPE, NET_IFACE, NET_LOCAL_IP) are NOT
+REM       cleared here — they persist across backup operations.
+REM       Only backup pipeline vars (Tier 2b + Tier 3) are cleared.
+REM ================================================================
 :MainMenu
     :: --- Clear Pipeline vars (Tier 2b: per-job) ---
     set "BACKUP_MODE="
