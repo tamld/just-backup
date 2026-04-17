@@ -44,17 +44,21 @@ chcp 65001 >nul 2>&1
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if '%errorlevel%' NEQ '0' (
     echo  Requesting Administrator privileges...
-    goto :goUAC
-) else (
-    goto :goADMIN
+    call :request_admin
+    exit /b
 )
 
-:goUAC
-    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\rs_getadmin.vbs"
-    echo UAC.ShellExecute "cmd.exe", "/c ""%~s0""", "%~dp0", "runas", 1 >> "%temp%\rs_getadmin.vbs"
-    "%temp%\rs_getadmin.vbs"
-    del "%temp%\rs_getadmin.vbs"
-    exit /B
+goto :goADMIN
+
+:request_admin
+    set "vbsFile=%temp%\rs_getadmin.vbs"
+    >"%vbsFile%" echo Set UAC = CreateObject("Shell.Application")
+    set "params=%*"
+    set "params=%params:"=\"%"
+    >>"%vbsFile%" echo UAC.ShellExecute "cmd.exe", "/c \"%~s0\" %params%", "", "runas", 1
+    cscript //nologo "%vbsFile%"
+    del "%vbsFile%"
+    exit /b
 
 :goADMIN
     pushd "%CD%"
@@ -65,10 +69,11 @@ if '%errorlevel%' NEQ '0' (
 :: ================================================================
 setlocal enabledelayedexpansion
 
-set "APP_VERSION=v1.3.0"
+set "APP_VERSION=v2.0.0"
 set "SCRIPT_DIR=%~dp0"
 set "LIBS=%SCRIPT_DIR%lib"
 set "LOG_DIR=%SCRIPT_DIR%logs"
+set "NET_STATUS=NOT_CONNECTED"
 
 :: Fail-fast: Kiem tra modules
 for %%M in (engine network discover ui) do (
@@ -80,26 +85,37 @@ for %%M in (engine network discover ui) do (
 )
 
 :: ================================================================
-:: MAIN MENU (Clear TIER 2 + TIER 3 pipeline)
+:: MAIN MENU
+:: Note: Network session vars (DEST_IP, NET_USER, NETWORK_PATH,
+::       NET_STATUS, NET_TYPE, NET_IFACE, NET_LOCAL_IP) are NOT
+::       cleared here — they persist across backup operations.
+::       Only backup pipeline vars (Tier 2b + Tier 3) are cleared.
 :: ================================================================
 :MainMenu
-    :: --- Clear Pipeline (Tier 2) ---
+    :: --- Clear Pipeline vars (Tier 2b: per-job) ---
     set "BACKUP_MODE="
-    set "NET_TYPE="
-    set "DEST_IP="
-    set "DEST_SHARE="
-    set "NET_USER="
-    set "NET_PASS="
-    set "NETWORK_PATH="
     set "BACKUP_DEST="
-    set "NET_IFACE="
-    set "NET_LOCAL_IP="
+    set "NET_PASS="
     :: --- Clear Selected (Tier 3) ---
     set "SELECTED_SRC="
     set "SELECTED_NAME="
     set "SELECTED_TYPE="
     set "FINAL_DEST="
 
+    call :displayMainMenu
+    choice /n /c 123456 /m "  Choose mode: "
+    if !errorlevel! equ 6 goto :ExitApp
+    if !errorlevel! equ 5 goto :NetworkMenu
+    if !errorlevel! equ 4 goto :ModeRestore
+    if !errorlevel! equ 3 goto :ModeLocal
+    if !errorlevel! equ 2 goto :ModePull
+    if !errorlevel! equ 1 goto :ModePush
+    goto :MainMenu
+
+:: ================================================================
+:: DISPLAY: Main Menu (separated from logic per cmdToolForHelpdesk)
+:: ================================================================
+:displayMainMenu
     call "%LIBS%\ui.bat" fn_banner
 
     echo        ========================================================
@@ -107,16 +123,107 @@ for %%M in (engine network discover ui) do (
     echo        [2] Backup PULL          - Remote to Local     : Press 2
     echo        [3] Backup LOCAL         - Local to Local      : Press 3
     echo        [4] Restore Profile      - Recover data        : Press 4
-    echo        [5] Exit                                       : Press 5
+    echo        [5] Network Setup        - Configure network   : Press 5
+    echo        [6] Exit                                       : Press 6
     echo        ========================================================
+    call "%LIBS%\ui.bat" fn_status_bar
     echo.
-    choice /n /c 12345 /m "  Choose mode: "
-    if !errorlevel! equ 5 goto :ExitApp
-    if !errorlevel! equ 4 goto :ModeRestore
-    if !errorlevel! equ 3 goto :ModeLocal
-    if !errorlevel! equ 2 goto :ModePull
-    if !errorlevel! equ 1 goto :ModePush
-    goto :MainMenu
+    goto :eof
+
+:: ================================================================
+:: NETWORK SETUP MENU (Optional — user-driven)
+:: ================================================================
+:NetworkMenu
+    cls
+    echo.
+    echo  [>>] NETWORK SETUP
+    call "%LIBS%\ui.bat" fn_separator
+    call "%LIBS%\network.bat" fn_show_status
+    call :displayNetworkMenu
+    choice /n /c 12340 /m "  Choose: "
+    if !errorlevel! equ 5 goto :MainMenu
+    if !errorlevel! equ 4 goto :NetworkShowStatus
+    if !errorlevel! equ 3 goto :NetworkDisconnect
+    if !errorlevel! equ 2 goto :NetworkConnectDHCP
+    if !errorlevel! equ 1 goto :NetworkConnectDirect
+    goto :NetworkMenu
+
+:displayNetworkMenu
+    echo.
+    echo   [1] Connect via Direct Cable ^(Static IP^)
+    echo   [2] Connect via Existing Network ^(DHCP^)
+    echo   [3] Disconnect ^& Reset
+    echo   [4] Show Connection Status
+    echo   [0] Back to Main Menu
+    echo.
+    goto :eof
+
+:NetworkConnectDirect
+    set "NET_TYPE=DIRECT"
+    call "%LIBS%\network.bat" fn_setup_direct_cable
+    if "!DIRECT_SETUP_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg "Direct cable setup failed."
+        goto :NetworkMenu
+    )
+    call "%LIBS%\network.bat" fn_input_credentials
+    if "!INPUT_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg "Invalid input."
+        goto :NetworkMenu
+    )
+    call "%LIBS%\network.bat" fn_test_connection "!DEST_IP!"
+    if "!NET_PING_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg
+        goto :NetworkMenu
+    )
+    call "%LIBS%\network.bat" fn_map_credentials "!DEST_IP!" "!NET_USER!" "!NET_PASS!"
+    set "NET_PASS="
+    if "!NET_MAP_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg
+        goto :NetworkMenu
+    )
+    set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
+    call "%LIBS%\ui.bat" fn_pause_msg "[OK] Network connected successfully."
+    goto :NetworkMenu
+
+:NetworkConnectDHCP
+    set "NET_TYPE=DHCP"
+    call "%LIBS%\network.bat" fn_input_credentials
+    if "!INPUT_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg "Invalid input."
+        goto :NetworkMenu
+    )
+    call "%LIBS%\network.bat" fn_test_connection "!DEST_IP!"
+    if "!NET_PING_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg
+        goto :NetworkMenu
+    )
+    call "%LIBS%\network.bat" fn_map_credentials "!DEST_IP!" "!NET_USER!" "!NET_PASS!"
+    set "NET_PASS="
+    if "!NET_MAP_OK!"=="0" (
+        call "%LIBS%\ui.bat" fn_pause_msg
+        goto :NetworkMenu
+    )
+    set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
+    call "%LIBS%\ui.bat" fn_pause_msg "[OK] Network connected successfully."
+    goto :NetworkMenu
+
+:NetworkDisconnect
+    call "%LIBS%\network.bat" fn_cleanup_all
+    set "DEST_IP="
+    set "DEST_SHARE="
+    set "NET_USER="
+    set "NET_PASS="
+    set "NETWORK_PATH="
+    set "NET_TYPE="
+    call "%LIBS%\ui.bat" fn_pause_msg "[OK] Disconnected. All connections cleared."
+    goto :NetworkMenu
+
+:NetworkShowStatus
+    cls
+    echo.
+    call "%LIBS%\network.bat" fn_show_status
+    call "%LIBS%\ui.bat" fn_pause_msg
+    goto :NetworkMenu
 
 :: ================================================================
 :: NETWORK SETUP (Chung cho PUSH va PULL)
