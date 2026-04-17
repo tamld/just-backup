@@ -106,7 +106,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :: ================================================================
 :NetworkSetup
     call :fn_select_network_type
-
+    if "!NET_TYPE!"=="CANCEL" goto :MainMenu
     if "!NET_TYPE!"=="DIRECT" (
         call :fn_setup_direct_cable
         if "!DIRECT_SETUP_OK!"=="0" (
@@ -519,9 +519,12 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
         echo   [%%i] !_pn!  ^|  !_pp!
     )
     echo.
+    echo   [0] Go back
+    echo.
     set "_RP="
-    set /p "_RP=  Choose profile [1-!PROFILE_COUNT!]: "
+    set /p "_RP=  Choose profile [0-!PROFILE_COUNT!]: "
     if "!_RP!"=="" goto :RestoreIntoProfile
+    if "!_RP!"=="0" goto :SelectRestoreSource
 
     call set "_dest_profile=%%PROFILE_!_RP!_PATH%%"
     if "!_dest_profile!"=="" (
@@ -656,8 +659,13 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     call :fn_separator
     echo   [1] Direct Cable ^(Static IP^)
     echo   [2] Existing Network ^(DHCP - Router / Modem^)
+    echo   [0] Go back
     echo.
-    choice /n /c 12 /m "  Choose: "
+    choice /n /c 120 /m "  Choose: "
+    if !errorlevel! equ 3 (
+        set "NET_TYPE=CANCEL"
+        goto :eof
+    )
     if !errorlevel! equ 1 (
         set "NET_TYPE=DIRECT"
     ) else (

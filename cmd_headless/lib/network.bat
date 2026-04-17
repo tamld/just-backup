@@ -33,8 +33,14 @@ exit /b
     echo.
     echo   [2] Existing Network (DHCP - Router / Modem)
     echo       Use when both PCs are on the same LAN with DHCP.
+    echo.
+    echo   [0] Go back
     echo  ------------------------------------------------------------
-    choice /n /c 12 /m "  Choose [1-2]: "
+    choice /n /c 120 /m "  Choose [1/2/0]: "
+    if !errorlevel! equ 3 (
+        set "NET_TYPE=CANCEL"
+        goto :eof
+    )
     if !errorlevel! equ 2 (
         set "NET_TYPE=DHCP"
     ) else (

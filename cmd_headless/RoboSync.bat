@@ -127,11 +127,14 @@ for %%M in (engine network discover ui) do (
     :: Step 1: Chon loai ket noi
     call "%LIBS%\network.bat" fn_select_network_type
 
-    :: Step 2: Neu Direct Cable, setup Static IP truoc
+    :: Step 1b: Handle cancel
+    if "!NET_TYPE!"=="CANCEL" goto :MainMenu
+
+    :: Step 2: If Direct Cable, setup Static IP first
     if "!NET_TYPE!"=="DIRECT" (
         call "%LIBS%\network.bat" fn_setup_direct_cable
         if "!DIRECT_SETUP_OK!"=="0" (
-            call "%LIBS%\ui.bat" fn_pause_msg "Cau hinh cap truc tiep that bai."
+            call "%LIBS%\ui.bat" fn_pause_msg "Direct cable setup failed."
             goto :MainMenu
         )
     )
@@ -139,7 +142,7 @@ for %%M in (engine network discover ui) do (
     :: Step 3: Nhap Share / User / Pass
     call "%LIBS%\network.bat" fn_input_credentials
     if "!INPUT_OK!"=="0" (
-        call "%LIBS%\ui.bat" fn_pause_msg "Thong tin nhap khong hop le."
+        call "%LIBS%\ui.bat" fn_pause_msg "Invalid input."
         goto :CleanupAndMenu
     )
 
@@ -561,9 +564,12 @@ for %%M in (engine network discover ui) do (
         echo   [%%i] !_pn!  ^|  !_pp!
     )
     echo.
+    echo   [0] Go back
+    echo.
     set "_RP="
-    set /p "_RP=  Choose profile [1-!PROFILE_COUNT!]: "
+    set /p "_RP=  Choose profile [0-!PROFILE_COUNT!]: "
     if "!_RP!"=="" goto :RestoreIntoProfile
+    if "!_RP!"=="0" goto :SelectRestoreSource
 
     call set "_dest_profile=%%PROFILE_!_RP!_PATH%%"
     call set "_dest_name=%%PROFILE_!_RP!_NAME%%"
