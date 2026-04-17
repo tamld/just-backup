@@ -43,7 +43,7 @@ chcp 65001 >nul 2>&1
 :: --- ADMIN CHECK (bat buoc cho C$, D$, profile access) ---
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if '%errorlevel%' NEQ '0' (
-    echo  Yeu cau quyen Administrator...
+    echo  Requesting Administrator privileges...
     goto :goUAC
 ) else (
     goto :goADMIN
@@ -73,7 +73,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :: Fail-fast: Kiem tra modules
 for %%M in (engine network discover ui) do (
     if not exist "%LIBS%\%%M.bat" (
-        echo  [!!] Thieu module: lib\%%M.bat
+        echo  [!!] Missing module: lib\%%M.bat
         pause
         exit /b 1
     )
@@ -103,14 +103,14 @@ for %%M in (engine network discover ui) do (
     call "%LIBS%\ui.bat" fn_banner
 
     echo        ========================================================
-    echo        [1] Backup day qua mang  - Local to Remote     : Press 1
-    echo        [2] Backup keo tu mang   - Remote to Local     : Press 2
-    echo        [3] Backup cung may      - Local to Local      : Press 3
-    echo        [4] Restore User Profile - Phuc hoi du lieu    : Press 4
-    echo        [5] Thoat                                      : Press 5
+    echo        [1] Backup PUSH          - Local to Remote     : Press 1
+    echo        [2] Backup PULL          - Remote to Local     : Press 2
+    echo        [3] Backup LOCAL         - Local to Local      : Press 3
+    echo        [4] Restore Profile      - Recover data        : Press 4
+    echo        [5] Exit                                       : Press 5
     echo        ========================================================
     echo.
-    choice /n /c 12345 /m "  Chon che do: "
+    choice /n /c 12345 /m "  Choose mode: "
     if !errorlevel! equ 5 goto :ExitApp
     if !errorlevel! equ 4 goto :ModeRestore
     if !errorlevel! equ 3 goto :ModeLocal
@@ -168,7 +168,7 @@ for %%M in (engine network discover ui) do (
     title RoboSync - PUSH
     cls
     echo.
-    echo  [>>] BACKUP DAY QUA MANG (Local -^> Remote)
+    echo  [^>^>] BACKUP PUSH (Local -^> Remote)
     call "%LIBS%\ui.bat" fn_separator
 
     call :NetworkSetup
@@ -182,8 +182,7 @@ for %%M in (engine network discover ui) do (
     set "BACKUP_MODE=PULL"
     title RoboSync - PULL
     cls
-    echo.
-    echo  [>>] BACKUP KEO TU MANG VE (Remote -^> Local)
+    echo  [^>^>] BACKUP PULL (Remote -^> Local)
     call "%LIBS%\ui.bat" fn_separator
 
     call :NetworkSetup
@@ -191,9 +190,9 @@ for %%M in (engine network discover ui) do (
     :: Nhap local dest
     echo.
     set "BACKUP_DEST="
-    set /p "BACKUP_DEST=  Duong dan luu local (VD: D:\Restore): "
+    set /p "BACKUP_DEST=  Local save path (e.g. D:\Restore): "
     if "!BACKUP_DEST!"=="" (
-        echo  [!!] Duong dan trong. Huy.
+        echo  [!!] Path is empty. Cancelled.
         goto :CleanupAndMenu
     )
     if not exist "!BACKUP_DEST!" mkdir "!BACKUP_DEST!" 2>nul
@@ -209,13 +208,13 @@ for %%M in (engine network discover ui) do (
     title RoboSync - LOCAL
     cls
     echo.
-    echo  [>>] BACKUP CUNG MAY (Local -^> Local)
+    echo  [^>^>] BACKUP LOCAL (Local -^> Local)
     call "%LIBS%\ui.bat" fn_separator
     echo.
     set "BACKUP_DEST="
-    set /p "BACKUP_DEST=  Duong dan DICH (VD: E:\Backup): "
+    set /p "BACKUP_DEST=  Destination path (e.g. E:\Backup): "
     if "!BACKUP_DEST!"=="" (
-        echo  [!!] Duong dan trong. Huy.
+        echo  [!!] Path is empty. Cancelled.
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :MainMenu
     )
@@ -227,8 +226,8 @@ for %%M in (engine network discover ui) do (
 :SelectSource
     cls
     echo.
-    echo  [>>] CHON NGUON BACKUP
-    echo  [--] Dich: !BACKUP_DEST!
+    echo  [^>^>] SELECT BACKUP SOURCE
+    echo  [--] Destination: !BACKUP_DEST!
     call "%LIBS%\ui.bat" fn_separator
     echo.
 
@@ -274,22 +273,22 @@ for %%M in (engine network discover ui) do (
     echo   --- TUY CHON ---
     set /a _TOTAL+=1
     set "_IDX_CUSTOM=!_TOTAL!"
-    echo   [!_TOTAL!] Nhap duong dan thu cong
+    echo   [!_TOTAL!] Enter path manually
 
     set /a _TOTAL+=1
     set "_IDX_ALL_P=!_TOTAL!"
-    echo   [!_TOTAL!] Backup TAT CA Profiles
+    echo   [!_TOTAL!] Backup ALL Profiles
 
     set /a _TOTAL+=1
     set "_IDX_ALL_D=!_TOTAL!"
-    echo   [!_TOTAL!] Backup TAT CA Partitions
+    echo   [!_TOTAL!] Backup ALL Partitions
 
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
     call "%LIBS%\ui.bat" fn_separator
 
     set "_SC="
-    set /p "_SC=  Chon [0-!_TOTAL!]: "
+    set /p "_SC=  Choose [0-!_TOTAL!]: "
 
     if "!_SC!"=="0" goto :CleanupAndMenu
 
@@ -302,7 +301,7 @@ for %%M in (engine network discover ui) do (
             if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
             call "%LIBS%\engine.bat" fn_run_robocopy "!SELECTED_SRC!" "!FINAL_DEST!" "PROFILE"
         )
-        call "%LIBS%\ui.bat" fn_pause_msg "[OK] Da backup tat ca Profiles."
+        call "%LIBS%\ui.bat" fn_pause_msg "[OK] All Profiles backed up."
         goto :SelectSource
     )
 
@@ -314,13 +313,13 @@ for %%M in (engine network discover ui) do (
             if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
             call "%LIBS%\engine.bat" fn_run_robocopy "!SELECTED_SRC!" "!FINAL_DEST!" "PARTITION"
         )
-        call "%LIBS%\ui.bat" fn_pause_msg "[OK] Da backup tat ca Partitions."
+        call "%LIBS%\ui.bat" fn_pause_msg "[OK] All Partitions backed up."
         goto :SelectSource
     )
 
     if "!_SC!"=="!_IDX_CUSTOM!" (
         set "SELECTED_SRC="
-        set /p "SELECTED_SRC=  Duong dan source: "
+        set /p "SELECTED_SRC=  Source path: "
         if "!SELECTED_SRC!"=="" goto :SelectSource
         set "SELECTED_NAME=Custom"
         set "SELECTED_TYPE=CUSTOM"
@@ -331,7 +330,7 @@ for %%M in (engine network discover ui) do (
     call set "SELECTED_NAME=%%SRC_!_SC!_NAME%%"
     call set "SELECTED_TYPE=%%SRC_!_SC!_TYPE%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectSource
     )
@@ -343,9 +342,9 @@ for %%M in (engine network discover ui) do (
 :SelectRemoteSource
     cls
     echo.
-    echo  [>>] CHON NGUON TU MAY XA
+    echo  [^>^>] SELECT REMOTE SOURCE
     echo  [--] Remote: !REMOTE_SOURCE!
-    echo  [--] Local : !BACKUP_DEST!
+    echo  [--] Local:  !BACKUP_DEST!
     call "%LIBS%\ui.bat" fn_separator
     echo.
 
@@ -365,16 +364,16 @@ for %%M in (engine network discover ui) do (
     echo   --- TUY CHON ---
     set /a _TOTAL+=1
     set "_IDX_CUSTOM=!_TOTAL!"
-    echo   [!_TOTAL!] Nhap thu cong
+    echo   [!_TOTAL!] Enter path manually
 
     set /a _TOTAL+=1
     set "_IDX_ALL=!_TOTAL!"
-    echo   [!_TOTAL!] Copy TOAN BO share
+    echo   [!_TOTAL!] Copy ENTIRE share
 
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
     set "_RC="
-    set /p "_RC=  Chon [0-!_TOTAL!]: "
+    set /p "_RC=  Choose [0-!_TOTAL!]: "
 
     if "!_RC!"=="0" goto :CleanupAndMenu
 
@@ -386,7 +385,7 @@ for %%M in (engine network discover ui) do (
 
     if "!_RC!"=="!_IDX_CUSTOM!" (
         set "_custom="
-        set /p "_custom=  Duong dan remote: "
+        set /p "_custom=  Remote path: "
         if "!_custom!"=="" goto :SelectRemoteSource
         call "%LIBS%\engine.bat" fn_run_robocopy "!_custom!" "!BACKUP_DEST!" "CUSTOM"
         call "%LIBS%\ui.bat" fn_pause_msg
@@ -396,7 +395,7 @@ for %%M in (engine network discover ui) do (
     call set "SELECTED_SRC=%%REMOTE_!_RC!_PATH%%"
     call set "SELECTED_NAME=%%REMOTE_!_RC!_NAME%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectRemoteSource
     )
@@ -412,14 +411,14 @@ for %%M in (engine network discover ui) do (
 :ConfirmAndRun
     set "FINAL_DEST=!BACKUP_DEST!\!SELECTED_NAME!"
     echo.
-    echo  [>>] XAC NHAN BACKUP
+    echo  [^>^>] CONFIRM BACKUP
     call "%LIBS%\ui.bat" fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !FINAL_DEST!
     echo  [--] Type   : !SELECTED_TYPE!
     call "%LIBS%\ui.bat" fn_separator
     echo.
-    choice /n /c YN /m "  Chay backup? [Y/N]: "
+    choice /n /c YN /m "  Run backup? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectSource
 
     if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
@@ -436,16 +435,16 @@ for %%M in (engine network discover ui) do (
     title RoboSync - RESTORE
     cls
     echo.
-    echo  [>>] RESTORE USER PROFILE
+    echo  [^>^>] RESTORE USER PROFILE
     call "%LIBS%\ui.bat" fn_separator
     echo.
-    echo  [--] Chon nguon chua ban backup profile:
+    echo  [--] Select backup source location:
     echo.
-    echo   [1] Thu muc local tren may nay
-    echo   [2] Thu muc tren mang ^(can xac thuc^)
-    echo   [0] Quay lai
+    echo   [1] Local folder on this PC
+    echo   [2] Network folder ^(requires auth^)
+    echo   [0] Go back
     echo.
-    choice /n /c 120 /m "  Chon: "
+    choice /n /c 120 /m "  Choose: "
     if !errorlevel! equ 3 goto :MainMenu
     if !errorlevel! equ 2 goto :RestoreFromNetwork
     if !errorlevel! equ 1 goto :RestoreFromLocal
@@ -454,14 +453,14 @@ for %%M in (engine network discover ui) do (
 :RestoreFromLocal
     echo.
     set "RESTORE_BASE="
-    set /p "RESTORE_BASE=  Duong dan chua backup (VD: E:\Backup): "
+    set /p "RESTORE_BASE=  Backup folder path (e.g. E:\Backup): "
     if "!RESTORE_BASE!"=="" (
-        echo  [!!] Duong dan trong.
+        echo  [!!] Path is empty.
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :ModeRestore
     )
     if not exist "!RESTORE_BASE!" (
-        echo  [!!] Duong dan khong ton tai: !RESTORE_BASE!
+        echo  [!!] Path does not exist: !RESTORE_BASE!
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :ModeRestore
     )
@@ -478,8 +477,8 @@ for %%M in (engine network discover ui) do (
 :SelectRestoreSource
     cls
     echo.
-    echo  [>>] CHON BACKUP PROFILE DE RESTORE
-    echo  [--] Thu muc: !RESTORE_BASE!
+    echo  [^>^>] SELECT BACKUP PROFILE TO RESTORE
+    echo  [--] Folder: !RESTORE_BASE!
     call "%LIBS%\ui.bat" fn_separator
     echo.
 
@@ -492,43 +491,43 @@ for %%M in (engine network discover ui) do (
     )
 
     if !_TOTAL! equ 0 (
-        echo  [--] Khong tim thay thu muc nao.
+        echo  [--] No folders found.
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :ModeRestore
     )
 
     echo.
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
     set "_RS="
-    set /p "_RS=  Chon backup: "
+    set /p "_RS=  Choose backup: "
     if "!_RS!"=="0" goto :CleanupAndMenu
     if "!_RS!"=="" goto :SelectRestoreSource
 
     call set "SELECTED_SRC=%%RS_!_RS!_PATH%%"
     call set "SELECTED_NAME=%%RS_!_RS!_NAME%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectRestoreSource
     )
 
     :: Chon che do restore
     echo.
-    echo  [>>] CHON CHE DO RESTORE
+    echo  [^>^>] SELECT RESTORE MODE
     call "%LIBS%\ui.bat" fn_separator
     echo  [--] Source: !SELECTED_NAME!
     echo.
-    echo   [A] Restore vao Profile co san
-    echo       Merge tung subfolder: Desktop, Documents, Downloads...
-    echo       KHONG ghi de ntuser.dat, KHONG xoa file cu.
+    echo   [A] Restore into existing Profile
+    echo       Merge subfolders: Desktop, Documents, Downloads...
+    echo       Does NOT overwrite ntuser.dat, does NOT delete old files.
     echo.
-    echo   [B] Restore vao duong dan chi dinh
-    echo       Full mirror copy vao 1 folder ban chon.
+    echo   [B] Restore to designated path
+    echo       Full mirror copy to a folder you specify.
     echo.
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
-    choice /n /c AB0 /m "  Chon [A/B/0]: "
+    choice /n /c AB0 /m "  Choose [A/B/0]: "
     if !errorlevel! equ 3 goto :SelectRestoreSource
     if !errorlevel! equ 2 goto :RestoreToPath
     if !errorlevel! equ 1 goto :RestoreIntoProfile
@@ -541,7 +540,7 @@ for %%M in (engine network discover ui) do (
 :RestoreIntoProfile
     cls
     echo.
-    echo  [>>] RESTORE VAO PROFILE CO SAN
+    echo  [^>^>] RESTORE INTO EXISTING PROFILE
     echo  [--] Backup: !SELECTED_SRC!
     call "%LIBS%\ui.bat" fn_separator
     echo.
@@ -549,12 +548,12 @@ for %%M in (engine network discover ui) do (
     :: Phat hien profiles tren may
     call "%LIBS%\discover.bat" fn_detect_profiles
     if !PROFILE_COUNT! equ 0 (
-        echo  [!!] Khong tim thay profile nao tren may.
+        echo  [!!] No profiles found on this PC.
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :SelectRestoreSource
     )
 
-    echo  [--] Chon profile dich:
+    echo  [--] Choose target profile:
     echo.
     for /l %%i in (1,1,!PROFILE_COUNT!) do (
         call set "_pn=%%PROFILE_%%i_NAME%%"
@@ -563,13 +562,13 @@ for %%M in (engine network discover ui) do (
     )
     echo.
     set "_RP="
-    set /p "_RP=  Chon profile [1-!PROFILE_COUNT!]: "
+    set /p "_RP=  Choose profile [1-!PROFILE_COUNT!]: "
     if "!_RP!"=="" goto :RestoreIntoProfile
 
     call set "_dest_profile=%%PROFILE_!_RP!_PATH%%"
     call set "_dest_name=%%PROFILE_!_RP!_NAME%%"
     if "!_dest_profile!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :RestoreIntoProfile
     )
@@ -577,18 +576,18 @@ for %%M in (engine network discover ui) do (
     :: Phat hien subdirs co the restore
     call "%LIBS%\discover.bat" fn_detect_profile_subdirs "!SELECTED_SRC!"
     if !SUBDIR_COUNT! equ 0 (
-        echo  [!!] Khong tim thay subfolder nao trong backup.
+        echo  [!!] No subfolders found in backup.
         call "%LIBS%\ui.bat" fn_pause_msg
         goto :SelectRestoreSource
     )
 
     :: Xac nhan
     echo.
-    echo  [>>] XAC NHAN RESTORE
+    echo  [^>^>] CONFIRM RESTORE
     call "%LIBS%\ui.bat" fn_separator
     echo  [--] Backup source : !SELECTED_SRC!
     echo  [--] Restore into  : !_dest_profile!
-    echo  [--] Mode          : MERGE ^(/E - giu file cu^)
+    echo  [--] Mode          : MERGE ^(/E - keeps existing files^)
     echo  [--] Folders:
     for /l %%i in (1,1,!SUBDIR_COUNT!) do (
         call set "_sd=%%SUBDIR_%%i_NAME%%"
@@ -596,7 +595,7 @@ for %%M in (engine network discover ui) do (
     )
     call "%LIBS%\ui.bat" fn_separator
     echo.
-    choice /n /c YN /m "  Bat dau restore? [Y/N]: "
+    choice /n /c YN /m "  Start restore? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectRestoreSource
 
     :: Thuc thi tung subfolder
@@ -620,7 +619,7 @@ for %%M in (engine network discover ui) do (
 :RestoreToPath
     echo.
     set "_rdest="
-    set /p "_rdest=  Duong dan dich (VD: D:\Restored\Admin): "
+    set /p "_rdest=  Destination path (e.g. D:\Restored\Admin): "
     if "!_rdest!"=="" (
         echo  [!!] Duong dan trong.
         call "%LIBS%\ui.bat" fn_pause_msg
@@ -628,14 +627,14 @@ for %%M in (engine network discover ui) do (
     )
 
     echo.
-    echo  [>>] XAC NHAN RESTORE
+    echo  [^>^>] CONFIRM RESTORE
     call "%LIBS%\ui.bat" fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !_rdest!
-    echo  [--] Mode   : MIRROR ^(/MIR - sao chep nguyen khoi^)
+    echo  [--] Mode   : MIRROR ^(/MIR - full copy^)
     call "%LIBS%\ui.bat" fn_separator
     echo.
-    choice /n /c YN /m "  Bat dau restore? [Y/N]: "
+    choice /n /c YN /m "  Start restore? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectRestoreSource
 
     call "%LIBS%\engine.bat" fn_run_robocopy "!SELECTED_SRC!" "!_rdest!" "RESTORE_MIRROR"
@@ -664,7 +663,7 @@ for %%M in (engine network discover ui) do (
     echo.
     call "%LIBS%\network.bat" fn_cleanup_all
     echo.
-    echo  Cam on da su dung RoboSync!
+    echo  Thank you for using RoboSync!
     echo.
     timeout /t 2 >nul
     endlocal

@@ -75,7 +75,7 @@ exit /b
 
     :: --- Hien thi ---
     echo.
-    echo  [>>] ROBOCOPY ENGINE
+    echo  [^>^>] ROBOCOPY ENGINE
     echo  [--] Source : !_rc_src!
     echo  [--] Dest   : !_rc_dst!
     echo  [--] Type   : !_rc_type!

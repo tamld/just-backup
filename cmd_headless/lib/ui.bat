@@ -34,6 +34,6 @@ exit /b
 :fn_pause_msg
     if not "%~1"=="" echo  %~1
     echo.
-    echo  Nhan phim bat ky de tiep tuc...
+    echo  Press any key to continue...
     pause >nul
     goto :eof

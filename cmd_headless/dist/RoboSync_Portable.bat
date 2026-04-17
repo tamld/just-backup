@@ -143,7 +143,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - PUSH
     cls
     echo.
-    echo  [>>] BACKUP DAY QUA MANG
+    echo  [^>^>] BACKUP DAY QUA MANG
     call :fn_separator
     call :NetworkSetup
     set "BACKUP_DEST=!NETWORK_PATH!"
@@ -157,7 +157,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - PULL
     cls
     echo.
-    echo  [>>] BACKUP KEO TU MANG VE
+    echo  [^>^>] BACKUP KEO TU MANG VE
     call :fn_separator
     call :NetworkSetup
     echo.
@@ -179,7 +179,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - LOCAL
     cls
     echo.
-    echo  [>>] BACKUP CUNG MAY
+    echo  [^>^>] BACKUP CUNG MAY
     call :fn_separator
     echo.
     set "BACKUP_DEST="
@@ -197,7 +197,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectSource
     cls
     echo.
-    echo  [>>] CHON NGUON BACKUP
+    echo  [^>^>] CHON NGUON BACKUP
     echo  [--] Dich: !BACKUP_DEST!
     call :fn_separator
     echo.
@@ -312,7 +312,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectRemoteSource
     cls
     echo.
-    echo  [>>] CHON NGUON TU MAY XA
+    echo  [^>^>] CHON NGUON TU MAY XA
     echo  [--] Remote: !REMOTE_SOURCE!
     echo  [--] Local : !BACKUP_DEST!
     call :fn_separator
@@ -377,7 +377,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :ConfirmAndRun
     set "FINAL_DEST=!BACKUP_DEST!\!SELECTED_NAME!"
     echo.
-    echo  [>>] XAC NHAN BACKUP
+    echo  [^>^>] XAC NHAN BACKUP
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !FINAL_DEST!
@@ -400,7 +400,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - RESTORE
     cls
     echo.
-    echo  [>>] RESTORE USER PROFILE
+    echo  [^>^>] RESTORE USER PROFILE
     call :fn_separator
     echo.
     echo  [--] Chon nguon chua ban backup profile:
@@ -439,7 +439,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectRestoreSource
     cls
     echo.
-    echo  [>>] CHON BACKUP PROFILE DE RESTORE
+    echo  [^>^>] CHON BACKUP PROFILE DE RESTORE
     echo  [--] Thu muc: !RESTORE_BASE!
     call :fn_separator
     echo.
@@ -475,7 +475,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
 
     echo.
-    echo  [>>] CHON CHE DO RESTORE
+    echo  [^>^>] CHON CHE DO RESTORE
     call :fn_separator
     echo  [--] Source: !SELECTED_NAME!
     echo.
@@ -499,7 +499,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :RestoreIntoProfile
     cls
     echo.
-    echo  [>>] RESTORE VAO PROFILE CO SAN
+    echo  [^>^>] RESTORE VAO PROFILE CO SAN
     echo  [--] Backup: !SELECTED_SRC!
     call :fn_separator
     echo.
@@ -538,7 +538,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
 
     echo.
-    echo  [>>] XAC NHAN RESTORE
+    echo  [^>^>] XAC NHAN RESTORE
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Into   : !_dest_profile!
@@ -580,7 +580,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
 
     echo.
-    echo  [>>] XAC NHAN RESTORE
+    echo  [^>^>] XAC NHAN RESTORE
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !_rdest!
@@ -652,7 +652,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 
 :fn_select_network_type
     echo.
-    echo  [>>] CHON LOAI KET NOI MANG
+    echo  [^>^>] CHON LOAI KET NOI MANG
     call :fn_separator
     echo   [1] Cap truc tiep ^(Direct Cable - Static IP^)
     echo   [2] Mang co san  ^(DHCP - Router / Modem^)
@@ -669,7 +669,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :fn_setup_direct_cable
     set "DIRECT_SETUP_OK=0"
     echo.
-    echo  [>>] CAU HINH CAP TRUC TIEP
+    echo  [^>^>] CAU HINH CAP TRUC TIEP
     call :fn_separator
 
     echo  [--] Cac interface mang hien co:
@@ -892,7 +892,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     call :fn_build_flags "!_rc_type!"
 
     echo.
-    echo  [>>] ROBOCOPY ENGINE
+    echo  [^>^>] ROBOCOPY ENGINE
     echo  [--] Source : !_rc_src!
     echo  [--] Dest   : !_rc_dst!
     echo  [--] Type   : !_rc_type!

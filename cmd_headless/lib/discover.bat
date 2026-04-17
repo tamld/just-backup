@@ -17,7 +17,7 @@ exit /b
     set /a PROFILE_COUNT=0
 
     if not exist "C:\Users" (
-        echo  [!!] C:\Users khong ton tai. Bo qua.
+        echo  [!!] C:\Users not found. Skipping.
         goto :eof
     )
 
@@ -79,7 +79,7 @@ exit /b
     set /a REMOTE_COUNT=0
 
     if "%~1"=="" (
-        echo  [!!] Network path trong. Bo qua.
+        echo  [!!] Network path is empty. Skipping.
         goto :eof
     )
 
@@ -90,7 +90,7 @@ exit /b
     )
 
     if !REMOTE_COUNT! equ 0 (
-        echo  [--] Khong tim thay thu muc nao trong %~1
+        echo  [--] No folders found in %~1
     )
     goto :eof
 
