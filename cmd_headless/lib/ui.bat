@@ -37,3 +37,16 @@ exit /b
     echo  Press any key to continue...
     pause >nul
     goto :eof
+
+:: ================================================================
+:: FUNCTION: fn_status_bar
+:: DESC: Show network status in menu footer
+:: READS : NET_STATUS, NETWORK_PATH (globals)
+:: ================================================================
+:fn_status_bar
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo        [Network: CONNECTED - !NETWORK_PATH!]
+    ) else (
+        echo        [Network: NOT CONNECTED]
+    )
+    goto :eof
