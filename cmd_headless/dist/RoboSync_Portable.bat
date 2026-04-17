@@ -37,7 +37,7 @@ chcp 65001 >nul 2>&1
 :: --- ADMIN CHECK ---
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if '%errorlevel%' NEQ '0' (
-    echo  Yeu cau quyen Administrator...
+    echo  Requesting Administrator privileges...
     goto :goUAC
 ) else (
     goto :goADMIN
@@ -86,14 +86,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     call :fn_banner
 
     echo        ========================================================
-    echo        [1] Backup day qua mang  - Local to Remote     : Press 1
-    echo        [2] Backup keo tu mang   - Remote to Local     : Press 2
-    echo        [3] Backup cung may      - Local to Local      : Press 3
-    echo        [4] Restore User Profile - Phuc hoi du lieu    : Press 4
-    echo        [5] Thoat                                      : Press 5
+    echo        [1] Backup PUSH          - Local to Remote     : Press 1
+    echo        [2] Backup PULL          - Remote to Local     : Press 2
+    echo        [3] Backup LOCAL         - Local to Local      : Press 3
+    echo        [4] Restore Profile      - Recover data        : Press 4
+    echo        [5] Exit                                       : Press 5
     echo        ========================================================
     echo.
-    choice /n /c 12345 /m "  Chon che do: "
+    choice /n /c 12345 /m "  Choose mode: "
     if !errorlevel! equ 5 goto :ExitApp
     if !errorlevel! equ 4 goto :ModeRestore
     if !errorlevel! equ 3 goto :ModeLocal
@@ -110,14 +110,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     if "!NET_TYPE!"=="DIRECT" (
         call :fn_setup_direct_cable
         if "!DIRECT_SETUP_OK!"=="0" (
-            call :fn_pause_msg "Cau hinh cap truc tiep that bai."
+            call :fn_pause_msg "Direct cable setup failed."
             goto :MainMenu
         )
     )
 
     call :fn_input_credentials
     if "!INPUT_OK!"=="0" (
-        call :fn_pause_msg "Thong tin nhap khong hop le."
+        call :fn_pause_msg "Invalid input."
         goto :CleanupAndMenu
     )
 
@@ -143,7 +143,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - PUSH
     cls
     echo.
-    echo  [^>^>] BACKUP DAY QUA MANG
+    echo  [^>^>] BACKUP PUSH (Local -^> Remote)
     call :fn_separator
     call :NetworkSetup
     set "BACKUP_DEST=!NETWORK_PATH!"
@@ -157,14 +157,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - PULL
     cls
     echo.
-    echo  [^>^>] BACKUP KEO TU MANG VE
+    echo  [^>^>] BACKUP PULL (Remote -^> Local)
     call :fn_separator
     call :NetworkSetup
     echo.
     set "BACKUP_DEST="
-    set /p "BACKUP_DEST=  Duong dan luu local (VD: D:\Restore): "
+    set /p "BACKUP_DEST=  Local save path (e.g. D:\Restore): "
     if "!BACKUP_DEST!"=="" (
-        echo  [!!] Duong dan trong.
+        echo  [!!] Path is empty.
         goto :CleanupAndMenu
     )
     if not exist "!BACKUP_DEST!" mkdir "!BACKUP_DEST!" 2>nul
@@ -179,13 +179,13 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     title RoboSync Portable - LOCAL
     cls
     echo.
-    echo  [^>^>] BACKUP CUNG MAY
+    echo  [^>^>] BACKUP LOCAL (Local -^> Local)
     call :fn_separator
     echo.
     set "BACKUP_DEST="
-    set /p "BACKUP_DEST=  Duong dan DICH (VD: E:\Backup): "
+    set /p "BACKUP_DEST=  Destination path (e.g. E:\Backup): "
     if "!BACKUP_DEST!"=="" (
-        echo  [!!] Duong dan trong.
+        echo  [!!] Path is empty.
         call :fn_pause_msg
         goto :MainMenu
     )
@@ -197,8 +197,8 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectSource
     cls
     echo.
-    echo  [^>^>] CHON NGUON BACKUP
-    echo  [--] Dich: !BACKUP_DEST!
+    echo  [^>^>] SELECT BACKUP SOURCE
+    echo  [--] Destination: !BACKUP_DEST!
     call :fn_separator
     echo.
 
@@ -240,25 +240,25 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
         echo.
     )
 
-    echo   --- TUY CHON ---
+    echo   --- OPTIONS ---
     set /a _TOTAL+=1
     set "_IDX_CUSTOM=!_TOTAL!"
-    echo   [!_TOTAL!] Nhap duong dan thu cong
+    echo   [!_TOTAL!] Enter path manually
 
     set /a _TOTAL+=1
     set "_IDX_ALL_P=!_TOTAL!"
-    echo   [!_TOTAL!] Backup TAT CA Profiles
+    echo   [!_TOTAL!] Backup ALL Profiles
 
     set /a _TOTAL+=1
     set "_IDX_ALL_D=!_TOTAL!"
-    echo   [!_TOTAL!] Backup TAT CA Partitions
+    echo   [!_TOTAL!] Backup ALL Partitions
 
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
     call :fn_separator
 
     set "_SC="
-    set /p "_SC=  Chon [0-!_TOTAL!]: "
+    set /p "_SC=  Choose [0-!_TOTAL!]: "
 
     if "!_SC!"=="0" goto :CleanupAndMenu
 
@@ -271,7 +271,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
             if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
             call :fn_run_robocopy "!SELECTED_SRC!" "!FINAL_DEST!" "PROFILE"
         )
-        call :fn_pause_msg "[OK] Da backup tat ca Profiles."
+        call :fn_pause_msg "[OK] All Profiles backed up."
         goto :SelectSource
     )
 
@@ -283,13 +283,13 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
             if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
             call :fn_run_robocopy "!SELECTED_SRC!" "!FINAL_DEST!" "PARTITION"
         )
-        call :fn_pause_msg "[OK] Da backup tat ca Partitions."
+        call :fn_pause_msg "[OK] All Partitions backed up."
         goto :SelectSource
     )
 
     if "!_SC!"=="!_IDX_CUSTOM!" (
         set "SELECTED_SRC="
-        set /p "SELECTED_SRC=  Duong dan source: "
+        set /p "SELECTED_SRC=  Source path: "
         if "!SELECTED_SRC!"=="" goto :SelectSource
         set "SELECTED_NAME=Custom"
         set "SELECTED_TYPE=CUSTOM"
@@ -300,7 +300,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     call set "SELECTED_NAME=%%SRC_!_SC!_NAME%%"
     call set "SELECTED_TYPE=%%SRC_!_SC!_TYPE%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectSource
     )
@@ -312,9 +312,9 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectRemoteSource
     cls
     echo.
-    echo  [^>^>] CHON NGUON TU MAY XA
+    echo  [^>^>] SELECT REMOTE SOURCE
     echo  [--] Remote: !REMOTE_SOURCE!
-    echo  [--] Local : !BACKUP_DEST!
+    echo  [--] Local:  !BACKUP_DEST!
     call :fn_separator
     echo.
 
@@ -322,7 +322,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 
     set /a _TOTAL=0
     if !REMOTE_COUNT! gtr 0 (
-        echo   --- THU MUC ---
+        echo   --- FOLDERS ---
         for /l %%i in (1,1,!REMOTE_COUNT!) do (
             set /a _TOTAL+=1
             call set "_rname=%%REMOTE_%%i_NAME%%"
@@ -331,17 +331,17 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
         echo.
     )
 
-    echo   --- TUY CHON ---
+    echo   --- OPTIONS ---
     set /a _TOTAL+=1
     set "_IDX_CUSTOM=!_TOTAL!"
-    echo   [!_TOTAL!] Nhap thu cong
+    echo   [!_TOTAL!] Enter path manually
     set /a _TOTAL+=1
     set "_IDX_ALL=!_TOTAL!"
-    echo   [!_TOTAL!] Copy TOAN BO share
-    echo   [0] Quay lai
+    echo   [!_TOTAL!] Copy ENTIRE share
+    echo   [0] Go back
     echo.
     set "_RC="
-    set /p "_RC=  Chon [0-!_TOTAL!]: "
+    set /p "_RC=  Choose [0-!_TOTAL!]: "
 
     if "!_RC!"=="0" goto :CleanupAndMenu
     if "!_RC!"=="!_IDX_ALL!" (
@@ -351,7 +351,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
     if "!_RC!"=="!_IDX_CUSTOM!" (
         set "_custom="
-        set /p "_custom=  Duong dan remote: "
+        set /p "_custom=  Remote path: "
         if "!_custom!"=="" goto :SelectRemoteSource
         call :fn_run_robocopy "!_custom!" "!BACKUP_DEST!" "CUSTOM"
         call :fn_pause_msg
@@ -361,7 +361,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     call set "SELECTED_SRC=%%REMOTE_!_RC!_PATH%%"
     call set "SELECTED_NAME=%%REMOTE_!_RC!_NAME%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectRemoteSource
     )
@@ -377,14 +377,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :ConfirmAndRun
     set "FINAL_DEST=!BACKUP_DEST!\!SELECTED_NAME!"
     echo.
-    echo  [^>^>] XAC NHAN BACKUP
+    echo  [^>^>] CONFIRM BACKUP
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !FINAL_DEST!
     echo  [--] Type   : !SELECTED_TYPE!
     call :fn_separator
     echo.
-    choice /n /c YN /m "  Chay backup? [Y/N]: "
+    choice /n /c YN /m "  Run backup? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectSource
 
     if not exist "!FINAL_DEST!" mkdir "!FINAL_DEST!" 2>nul
@@ -403,13 +403,13 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     echo  [^>^>] RESTORE USER PROFILE
     call :fn_separator
     echo.
-    echo  [--] Chon nguon chua ban backup profile:
+    echo  [--] Select backup source location:
     echo.
-    echo   [1] Thu muc local tren may nay
-    echo   [2] Thu muc tren mang ^(can xac thuc^)
-    echo   [0] Quay lai
+    echo   [1] Local folder on this PC
+    echo   [2] Network folder ^(requires auth^)
+    echo   [0] Go back
     echo.
-    choice /n /c 120 /m "  Chon: "
+    choice /n /c 120 /m "  Choose: "
     if !errorlevel! equ 3 goto :MainMenu
     if !errorlevel! equ 2 goto :RestoreFromNetwork
     if !errorlevel! equ 1 goto :RestoreFromLocal
@@ -418,14 +418,14 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :RestoreFromLocal
     echo.
     set "RESTORE_BASE="
-    set /p "RESTORE_BASE=  Duong dan chua backup (VD: E:\Backup): "
+    set /p "RESTORE_BASE=  Backup folder path (e.g. E:\Backup): "
     if "!RESTORE_BASE!"=="" (
-        echo  [!!] Duong dan trong.
+        echo  [!!] Path is empty.
         call :fn_pause_msg
         goto :ModeRestore
     )
     if not exist "!RESTORE_BASE!" (
-        echo  [!!] Duong dan khong ton tai: !RESTORE_BASE!
+        echo  [!!] Path does not exist: !RESTORE_BASE!
         call :fn_pause_msg
         goto :ModeRestore
     )
@@ -439,8 +439,8 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :SelectRestoreSource
     cls
     echo.
-    echo  [^>^>] CHON BACKUP PROFILE DE RESTORE
-    echo  [--] Thu muc: !RESTORE_BASE!
+    echo  [^>^>] SELECT BACKUP PROFILE TO RESTORE
+    echo  [--] Folder: !RESTORE_BASE!
     call :fn_separator
     echo.
 
@@ -453,41 +453,41 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
 
     if !_TOTAL! equ 0 (
-        echo  [--] Khong tim thay thu muc nao.
+        echo  [--] No folders found.
         call :fn_pause_msg
         goto :ModeRestore
     )
 
     echo.
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
     set "_RS="
-    set /p "_RS=  Chon backup: "
+    set /p "_RS=  Choose backup: "
     if "!_RS!"=="0" goto :CleanupAndMenu
     if "!_RS!"=="" goto :SelectRestoreSource
 
     call set "SELECTED_SRC=%%RS_!_RS!_PATH%%"
     call set "SELECTED_NAME=%%RS_!_RS!_NAME%%"
     if "!SELECTED_SRC!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :SelectRestoreSource
     )
 
     echo.
-    echo  [^>^>] CHON CHE DO RESTORE
+    echo  [^>^>] SELECT RESTORE MODE
     call :fn_separator
     echo  [--] Source: !SELECTED_NAME!
     echo.
-    echo   [A] Restore vao Profile co san
-    echo       Merge tung subfolder - KHONG xoa file cu.
+    echo   [A] Restore into existing Profile
+    echo       Merge subfolders - does NOT delete old files.
     echo.
-    echo   [B] Restore vao duong dan chi dinh
+    echo   [B] Restore to designated path
     echo       Full mirror copy.
     echo.
-    echo   [0] Quay lai
+    echo   [0] Go back
     echo.
-    choice /n /c AB0 /m "  Chon [A/B/0]: "
+    choice /n /c AB0 /m "  Choose [A/B/0]: "
     if !errorlevel! equ 3 goto :SelectRestoreSource
     if !errorlevel! equ 2 goto :RestoreToPath
     if !errorlevel! equ 1 goto :RestoreIntoProfile
@@ -499,19 +499,19 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :RestoreIntoProfile
     cls
     echo.
-    echo  [^>^>] RESTORE VAO PROFILE CO SAN
+    echo  [^>^>] RESTORE INTO EXISTING PROFILE
     echo  [--] Backup: !SELECTED_SRC!
     call :fn_separator
     echo.
 
     call :fn_detect_profiles
     if !PROFILE_COUNT! equ 0 (
-        echo  [!!] Khong tim thay profile nao tren may.
+        echo  [!!] No profiles found on this PC.
         call :fn_pause_msg
         goto :SelectRestoreSource
     )
 
-    echo  [--] Chon profile dich:
+    echo  [--] Choose target profile:
     echo.
     for /l %%i in (1,1,!PROFILE_COUNT!) do (
         call set "_pn=%%PROFILE_%%i_NAME%%"
@@ -520,25 +520,25 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
     echo.
     set "_RP="
-    set /p "_RP=  Chon profile [1-!PROFILE_COUNT!]: "
+    set /p "_RP=  Choose profile [1-!PROFILE_COUNT!]: "
     if "!_RP!"=="" goto :RestoreIntoProfile
 
     call set "_dest_profile=%%PROFILE_!_RP!_PATH%%"
     if "!_dest_profile!"=="" (
-        echo  [!!] Lua chon khong hop le.
+        echo  [!!] Invalid selection.
         timeout /t 2 >nul
         goto :RestoreIntoProfile
     )
 
     call :fn_detect_profile_subdirs "!SELECTED_SRC!"
     if !SUBDIR_COUNT! equ 0 (
-        echo  [!!] Khong tim thay subfolder nao trong backup.
+        echo  [!!] No subfolders found in backup.
         call :fn_pause_msg
         goto :SelectRestoreSource
     )
 
     echo.
-    echo  [^>^>] XAC NHAN RESTORE
+    echo  [^>^>] CONFIRM RESTORE
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Into   : !_dest_profile!
@@ -550,7 +550,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     )
     call :fn_separator
     echo.
-    choice /n /c YN /m "  Bat dau restore? [Y/N]: "
+    choice /n /c YN /m "  Start restore? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectRestoreSource
 
     echo.
@@ -563,7 +563,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
         call :fn_run_robocopy "!_s!" "!_d!" "RESTORE_MERGE"
     )
     echo.
-    call :fn_pause_msg "[OK] Restore hoan tat."
+    call :fn_pause_msg "[OK] Restore complete."
     goto :SelectRestoreSource
 
 :: ================================================================
@@ -572,27 +572,27 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :RestoreToPath
     echo.
     set "_rdest="
-    set /p "_rdest=  Duong dan dich (VD: D:\Restored\Admin): "
+    set /p "_rdest=  Destination path (e.g. D:\Restored\Admin): "
     if "!_rdest!"=="" (
-        echo  [!!] Duong dan trong.
+        echo  [!!] Path is empty.
         call :fn_pause_msg
         goto :SelectRestoreSource
     )
 
     echo.
-    echo  [^>^>] XAC NHAN RESTORE
+    echo  [^>^>] CONFIRM RESTORE
     call :fn_separator
     echo  [--] Source : !SELECTED_SRC!
     echo  [--] Dest   : !_rdest!
     echo  [--] Mode   : MIRROR ^(/MIR^)
     call :fn_separator
     echo.
-    choice /n /c YN /m "  Bat dau restore? [Y/N]: "
+    choice /n /c YN /m "  Start restore? [Y/N]: "
     if !errorlevel! equ 2 goto :SelectRestoreSource
 
     call :fn_run_robocopy "!SELECTED_SRC!" "!_rdest!" "RESTORE_MIRROR"
     echo.
-    call :fn_pause_msg "[OK] Restore hoan tat."
+    call :fn_pause_msg "[OK] Restore complete."
     goto :SelectRestoreSource
 
 :: ================================================================
@@ -611,7 +611,7 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     echo.
     call :fn_cleanup_all
     echo.
-    echo  Cam on da su dung RoboSync!
+    echo  Thank you for using RoboSync!
     echo.
     timeout /t 2 >nul
     endlocal
@@ -652,61 +652,68 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 
 :fn_select_network_type
     echo.
-    echo  [^>^>] CHON LOAI KET NOI MANG
+    echo  [^>^>] SELECT NETWORK MODE
     call :fn_separator
-    echo   [1] Cap truc tiep ^(Direct Cable - Static IP^)
-    echo   [2] Mang co san  ^(DHCP - Router / Modem^)
+    echo   [1] Direct Cable ^(Static IP^)
+    echo   [2] Existing Network ^(DHCP - Router / Modem^)
     echo.
-    choice /n /c 12 /m "  Chon: "
+    choice /n /c 12 /m "  Choose: "
     if !errorlevel! equ 1 (
         set "NET_TYPE=DIRECT"
     ) else (
         set "NET_TYPE=DHCP"
     )
-    echo  [--] Che do: !NET_TYPE!
+    echo  [--] Mode: !NET_TYPE!
     goto :eof
 
 :fn_setup_direct_cable
     set "DIRECT_SETUP_OK=0"
     echo.
-    echo  [^>^>] CAU HINH CAP TRUC TIEP
+    echo  [^>^>] DIRECT CABLE SETUP (Static IP)
     call :fn_separator
 
-    echo  [--] Cac interface mang hien co:
+    echo  [--] Available network interfaces:
     echo.
     for /f "tokens=1,2,3,4*" %%A in ('netsh interface show interface') do (
         echo   %%A %%B %%C %%D
     )
     echo.
-    set "NET_IFACE="
-    set /p "NET_IFACE=  Ten interface (VD: Ethernet): "
-    if "!NET_IFACE!"=="" goto :eof
+
+    echo  [--] Default interface: Ethernet
+    choice /n /c YN /m "  Use 'Ethernet'? [Y/N]: "
+    if !errorlevel! equ 1 (
+        set "NET_IFACE=Ethernet"
+    ) else (
+        set "NET_IFACE="
+        set /p "NET_IFACE=  Enter interface name: "
+        if "!NET_IFACE!"=="" goto :eof
+    )
 
     echo.
-    echo  [--] Goi y IP:
-    echo   May nay: 192.168.0.1  ^|  May kia: 192.168.0.2
-    echo   Hoac  : 10.0.0.1     ^|  May kia: 10.0.0.2
+    echo  [--] Suggested IP for direct cable:
+    echo   This PC: 192.168.0.1  ^|  Remote PC: 192.168.0.2
+    echo   Or     : 10.0.0.1     ^|  Remote PC: 10.0.0.2
     echo.
     set "NET_LOCAL_IP="
-    set /p "NET_LOCAL_IP=  IP cho may nay: "
+    set /p "NET_LOCAL_IP=  IP for THIS PC: "
     if "!NET_LOCAL_IP!"=="" goto :eof
 
-    echo  [--] Dang set IP !NET_LOCAL_IP! cho !NET_IFACE!...
+    echo  [..] Setting static IP !NET_LOCAL_IP! on !NET_IFACE!...
     netsh interface ip set address "!NET_IFACE!" static !NET_LOCAL_IP! 255.255.255.0 >nul 2>&1
     if !errorlevel! neq 0 (
-        echo  [!!] Khong the set IP. Kiem tra ten interface.
+        echo  [!!] Failed to set IP. Check interface name.
         goto :eof
     )
 
-    echo  [OK] Da set !NET_LOCAL_IP! cho !NET_IFACE!
+    echo  [OK] Set !NET_LOCAL_IP! on !NET_IFACE!
     set "DIRECT_SETUP_OK=1"
     goto :eof
 
 :fn_restore_dhcp
     if not defined NET_IFACE goto :eof
-    echo  [--] Phuc hoi DHCP cho !NET_IFACE!...
+    echo  [..] Restoring DHCP on !NET_IFACE!...
     netsh interface ip set address "!NET_IFACE!" dhcp >nul 2>&1
-    echo  [OK] Da phuc hoi DHCP.
+    echo  [OK] DHCP restored.
     set "NET_IFACE="
     goto :eof
 
@@ -714,20 +721,20 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     set "INPUT_OK=0"
     echo.
     set "DEST_IP="
-    set /p "DEST_IP=  IP may dich (VD: 192.168.0.2): "
+    set /p "DEST_IP=  Remote PC IP (e.g. 192.168.0.2): "
     if "!DEST_IP!"=="" goto :eof
 
     set "DEST_SHARE="
-    set /p "DEST_SHARE=  Ten share (VD: C$, D$, Backup): "
+    set /p "DEST_SHARE=  Share name (e.g. C$, D$, Backup): "
     if "!DEST_SHARE!"=="" goto :eof
 
     set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
 
     set "NET_USER="
-    set /p "NET_USER=  Username (VD: Administrator): "
+    set /p "NET_USER=  Username (e.g. Administrator): "
     if "!NET_USER!"=="" goto :eof
 
-    echo  [--] Nhap password:
+    echo  [--] Enter password:
     set "NET_PASS="
     for /f "tokens=*" %%P in ('powershell -Command "$p = Read-Host -AsSecureString; [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p))" 2^>nul') do set "NET_PASS=%%P"
     if "!NET_PASS!"=="" (
@@ -741,14 +748,17 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
 :fn_test_connection
     set "NET_PING_OK=0"
     echo.
-    echo  [--] Kiem tra ket noi den %~1...
-    ping -n 2 -w 1000 "%~1" >nul 2>&1
-    if !errorlevel! neq 0 (
-        echo  [!!] Khong the ket noi den %~1
-        goto :eof
+    echo  [--] Pinging %~1 ...
+    set "_ping_result="
+    for /f "tokens=*" %%L in ('ping -n 2 -w 1500 "%~1" 2^>nul') do (
+        echo "%%L" | find "TTL=" >nul 2>&1 && set "_ping_result=OK"
     )
-    echo  [OK] Ket noi thanh cong.
-    set "NET_PING_OK=1"
+    if "!_ping_result!"=="OK" (
+        echo  [OK] %~1 is reachable.
+        set "NET_PING_OK=1"
+    ) else (
+        echo  [!!] Cannot reach %~1
+    )
     goto :eof
 
 :fn_map_credentials
@@ -756,15 +766,15 @@ set "LOG_DIR=%SCRIPT_DIR%logs"
     echo  [--] Mapping \\%~1\!DEST_SHARE!...
     net use "!NETWORK_PATH!" /user:"%~2" "%~3" /persistent:no >nul 2>&1
     if !errorlevel! neq 0 (
-        echo  [!!] Xac thuc that bai.
+        echo  [!!] Authentication failed.
         goto :eof
     )
-    echo  [OK] Da map thanh cong.
+    echo  [OK] Mapped successfully.
     set "NET_MAP_OK=1"
     goto :eof
 
 :fn_unmap_credentials
-    echo  [--] Unmap \\%~1\!DEST_SHARE!...
+    echo  [--] Unmapping \\%~1\!DEST_SHARE!...
     net use "!NETWORK_PATH!" /delete /yes >nul 2>&1
     goto :eof
 
