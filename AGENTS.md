@@ -34,6 +34,11 @@ All documentation, GitHub Issues, Pull Request descriptions, and inline code com
 ### 2.1 Triggering Jules Adversarial Reviews
 [LAZY LOAD: `.agents/knowledge/ki_jules_api_workflow.md`]
 
+**API Key Rotation Strategy**:
+To optimize resource usage across accounts, we follow a project-based rotation:
+- **Jules Ultra**: Reserved for Core Engine logic, Security Audits, and complex architectural refactors (e.g., `just-backup`).
+- **Jules Pro**: Prioritized for UI components, standard business logic, and boilerplate generation (e.g., `web-login-solo`).
+
 ### 2.2 Releasing Portable Builds
 Before merging to `master` and updating `dist/RoboSync_Portable.bat`:
 1. Run the `test_harness.ps1` script to verify 55/55 test steps.
