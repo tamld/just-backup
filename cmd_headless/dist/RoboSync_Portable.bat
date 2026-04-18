@@ -1060,6 +1060,7 @@ set "NET_STATUS=NOT_CONNECTED"
 
     call :fn_build_flags "!_rc_type!"
 
+    :: --- Load Exclusions from config.ini ---
     if exist "config.ini" (
         for /f "usebackq tokens=*" %%A in ("config.ini") do (
             set "_line=%%A"

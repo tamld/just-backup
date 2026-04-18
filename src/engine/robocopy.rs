@@ -1,6 +1,5 @@
 use std::process::{Command, ExitStatus};
 use std::path::{Path, PathBuf};
-use crate::models::config;
 
 #[derive(Debug, Clone)]
 pub struct RobocopyResult {
@@ -36,22 +35,10 @@ pub fn run_robocopy(
        .arg(format!("/LOG:{}", log_file.display()));
 
     // Exclude system files and common temporary folders/files
-    let mut xd_args = vec![
-        "System Volume Information".to_string(),
-        "$Recycle.Bin".to_string(),
-        "Windows\\Temp".to_string(),
-    ];
-
-    let config_path = Path::new("config.ini");
-    if config_path.exists() {
-        let exclusions = config::read_exclusions(config_path);
-        xd_args.extend(exclusions);
-    }
-
-    cmd.arg("/XD");
-    for xd in xd_args {
-        cmd.arg(xd);
-    }
+    cmd.arg("/XD")
+       .arg("System Volume Information")
+       .arg("$Recycle.Bin")
+       .arg("Windows\\Temp");
 
     cmd.arg("/XF")
        .arg("pagefile.sys")
