@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'RUST_CODE' > src/engine/robocopy.rs
 use std::process::{Command, ExitStatus};
 use std::path::{Path, PathBuf};
 use crate::models::config;
@@ -73,3 +75,4 @@ pub fn run_robocopy(
         log_file: log_file.to_string_lossy().into_owned(),
     })
 }
+RUST_CODE
