@@ -1060,6 +1060,18 @@ set "NET_STATUS=NOT_CONNECTED"
 
     call :fn_build_flags "!_rc_type!"
 
+    :: --- Load Exclusions from config.ini ---
+    if exist "config.ini" (
+        for /f "usebackq tokens=*" %%A in ("config.ini") do (
+            set "_line=%%A"
+            if not "!_line:~0,1!"==";" (
+                if not "!_line:~0,1!"=="#" (
+                    set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD ""!_line!"""
+                )
+            )
+        )
+    )
+
     echo.
     echo  [^>^>] ROBOCOPY ENGINE
     echo  [--] Source : !_rc_src!
