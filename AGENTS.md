@@ -27,6 +27,10 @@ All documentation, GitHub Issues, Pull Request descriptions, and inline code com
 ### I3: CMD Parser Safety
 [LAZY LOAD: `.agents/knowledge/ki_cmd_parser_traps.md`]
 
+### I4: Feature Specifications (SRS)
+Agents MUST follow strict specifications when implementing specific features to avoid architecture violation.
+[LAZY LOAD: `.agents/knowledge/ki_srs_ini_exclusions.md`] (For the config.ini exclusions feature)
+
 ---
 
 ## Layer 2 — Routing & Protocols (HOW to act)
