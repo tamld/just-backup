@@ -4,6 +4,17 @@
 
 ---
 
+## 0. Git Author Identity (Mandatory — Inherited from Root AGENTS.md)
+
+All AI Agents MUST commit on behalf of the project owner:
+```
+git config user.name "tamld"
+git config user.email "ductam1828@gmail.com"
+```
+Agents are tools of the owner, not independent contributors. No bot/agent identity in git history.
+
+---
+
 ## 1. Identity & Core Doctrine
 
 **RoboSync** is a production-grade, automated backup & restore utility designed for restricted Windows environments.
