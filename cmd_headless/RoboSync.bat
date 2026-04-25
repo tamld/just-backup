@@ -1,6 +1,6 @@
 @echo off
 :: ================================================================
-:: ROBOSYNC v1.3.0 — PRODUCTION BACKUP & RESTORE UTILITY
+:: ROBOSYNC v2.0.0 — PRODUCTION BACKUP & RESTORE UTILITY
 :: Engine : Robocopy  |  Auth : Net Use  |  Format : Pure CMD
 ::
 :: ================================================================
@@ -281,6 +281,16 @@ REM ================================================================
     echo  [^>^>] BACKUP PUSH (Local -^> Remote)
     call "%LIBS%\ui.bat" fn_separator
 
+    REM Reuse existing network session if available (EC-2.1)
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Using existing connection: !NETWORK_PATH!
+        echo.
+        choice /n /c YN /m "  Continue with this connection? [Y/N]: "
+        if !errorlevel! equ 1 (
+            set "BACKUP_DEST=!NETWORK_PATH!"
+            goto :SelectSource
+        )
+    )
     call :NetworkSetup
     set "BACKUP_DEST=!NETWORK_PATH!"
     goto :SelectSource
@@ -292,10 +302,19 @@ REM ================================================================
     set "BACKUP_MODE=PULL"
     title RoboSync - PULL
     cls
+    echo.
     echo  [^>^>] BACKUP PULL (Remote -^> Local)
     call "%LIBS%\ui.bat" fn_separator
 
-    call :NetworkSetup
+    REM Reuse existing network session if available (EC-2.1)
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Using existing connection: !NETWORK_PATH!
+        echo.
+        choice /n /c YN /m "  Continue with this connection? [Y/N]: "
+        if !errorlevel! equ 2 call :NetworkSetup
+    ) else (
+        call :NetworkSetup
+    )
 
     :: Nhap local dest
     echo.

@@ -4,6 +4,17 @@
 
 ---
 
+## 0. Git Author Identity (Mandatory — Inherited from Root AGENTS.md)
+
+All AI Agents MUST commit on behalf of the project owner:
+```
+git config user.name "tamld"
+git config user.email "ductam1828@gmail.com"
+```
+Agents are tools of the owner, not independent contributors. No bot/agent identity in git history.
+
+---
+
 ## 1. Identity & Core Doctrine
 
 **RoboSync** is a production-grade, automated backup & restore utility designed for restricted Windows environments.
@@ -59,8 +70,35 @@ Code must be modularized:
    if "%~1"=="" ( echo [!!] Parameter missing. & goto :eof )
    ```
 2. **Path Verification**: Never spawn `robocopy` or `net use` without verifying the path exists.
-3. **Execution Halts**: Use `goto :eof` or `exit /b` to unwind. NEVER `exit` inside a module (kills terminal).
-4. **Pre-clear before `set /p`**: A bare Enter keeps the OLD value. Always `set "VAR="` first.
+3. **Source = Destination Guard**: Always verify `src != dst` before robocopy. `/MIR` on same path = data loss.
+4. **Execution Halts**: Use `goto :eof` or `exit /b` to unwind. NEVER `exit` inside a module (kills terminal).
+5. **Pre-clear before `set /p`**: A bare Enter keeps the OLD value. Always `set "VAR="` first.
+
+### 4B. ERRORLEVEL-Driven Logic (The Only Reliable Channel)
+
+CMD has no return values from functions, no try/catch, and stdout parsing (`for /f`) breaks on special characters (`!`, `%`, `^`, `&`, `>`, `<`, `|`). **ERRORLEVEL is the only reliable communication channel** between modules.
+
+**Rules**:
+1. **Capture immediately**: `set "RC=!errorlevel!"` right after the command. Any subsequent command resets it.
+2. **Use flag variables**: Functions set flags (`INPUT_OK`, `NET_PING_OK`, `NET_MAP_OK`, `LAST_RC_STATUS`). Callers check flags, never parse stdout.
+3. **Use LEQ/GEQ for ranges**: Robocopy returns 0-16 bitmask. `if !RC! LEQ 3` not `if !RC!==0`.
+4. **Error loud**: Every failure MUST echo `[!!]` with context. Never silently `goto :eof` on error.
+5. **99 = internal error**: RoboSync uses exit code 99 for pre-flight validation failures (empty path, src=dst, etc.).
+
+**Flag Variable Contract**:
+
+| Flag | OK Value | Set By | Checked By |
+|---|---|---|---|
+| `INPUT_OK` | `1` | `fn_input_credentials` | Router (NetworkSetup) |
+| `NET_PING_OK` | `1` | `fn_test_connection` | Router (NetworkSetup) |
+| `NET_MAP_OK` | `1` | `fn_map_credentials` | Router (NetworkSetup) |
+| `DIRECT_SETUP_OK` | `1` | `fn_setup_direct_cable` | Router (NetworkMenu) |
+| `LAST_RC_STATUS` | `SUCCESS` | `fn_run_robocopy` | Router (all backup modes) |
+| `LAST_RC_CODE` | `0-3` | `fn_run_robocopy` | Router (for logging) |
+
+**Decision chain pattern**: Each step MUST pass before the next runs. If any flag = fail, PAUSE + return to menu.
+
+Full reference: [`docs/CMD_ERROR_PATTERNS.md`](docs/CMD_ERROR_PATTERNS.md)
 
 ---
 
