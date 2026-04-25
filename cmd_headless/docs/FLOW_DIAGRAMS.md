@@ -698,3 +698,139 @@ Used by UC1 (PUSH), UC2 (PULL), and UC6 (standalone).
   (skips network setup -- already connected) -->
   Select source --> Backup
 ```
+
+---
+
+## 12. ERRORLEVEL Decision Chains
+
+CMD has no exceptions, no try/catch, no return values from functions.
+**ERRORLEVEL is the only reliable communication channel.**
+
+### Why Not STDOUT?
+
+```
+  stdout parsing (for /f)         vs     ERRORLEVEL
+  ─────────────────────────              ────────────────
+  Breaks on ! % ^ & > < |               Always an integer
+  Requires escape gymnastics             Survives all chars
+  for /f "delims=" is fragile            if !RC! LEQ 3 is solid
+  Result lost after next command         Capture: set "RC=!errorlevel!"
+```
+
+### The Network Setup Decision Chain
+
+```
+  ┌───────────────────┐
+  │fn_input_credentials│
+  └─────────┬─────────┘
+            │
+       INPUT_OK?
+       ╱        ╲
+     =1          =0
+      │           │
+      ▼     ┌─────▼───────────────┐
+      │     │ [!!] Invalid input  │
+      │     │ PAUSE               │
+      │     │ goto :CleanupAndMenu│
+      │     └─────────────────────┘
+      │
+  ┌───▼───────────────┐
+  │fn_test_connection  │
+  │  ping -n 2 <IP>    │
+  │  ERRORLEVEL 0=reply│
+  └─────────┬─────────┘
+            │
+      NET_PING_OK?
+       ╱        ╲
+     =1          =0
+      │           │
+      ▼     ┌─────▼───────────────┐
+      │     │ [!!] Cannot reach   │
+      │     │ PAUSE               │
+      │     │ goto :CleanupAndMenu│
+      │     └─────────────────────┘
+      │
+  ┌───▼───────────────┐
+  │fn_map_credentials  │
+  │  net use \\IP\Share│
+  │  ERRORLEVEL 0=OK   │
+  └─────────┬─────────┘
+            │
+      NET_MAP_OK?
+       ╱        ╲
+     =1          =0
+      │           │
+      ▼     ┌─────▼───────────────┐
+      │     │ [!!] Auth failed    │
+      │     │ PAUSE               │
+      │     │ goto :CleanupAndMenu│
+      │     └─────────────────────┘
+      │
+  ┌───▼───────────────┐
+  │ set "NET_PASS="   │  *** ZERO-LEAK ***
+  │ NETWORK_PATH set  │
+  │ CONTINUE          │
+  └───────────────────┘
+```
+
+### The Robocopy Exit Code Chain
+
+```
+  ┌────────────────────────────────┐
+  │ fn_run_robocopy                │
+  │ PRE-FLIGHT GUARDS             │
+  └──────────────┬─────────────────┘
+                 │
+         ┌───────▼───────┐     ┌──────────────────────┐
+         │ src empty?    │─YES─► [!!] FAILED, RC=99   │
+         └───────┬───────┘     └──────────────────────┘
+                 │ NO
+         ┌───────▼───────┐     ┌──────────────────────┐
+         │ dst empty?    │─YES─► [!!] FAILED, RC=99   │
+         └───────┬───────┘     └──────────────────────┘
+                 │ NO
+         ┌───────▼───────┐     ┌──────────────────────┐
+         │ src exists?   │─NO──► [!!] FAILED, RC=99   │
+         └───────┬───────┘     └──────────────────────┘
+                 │ YES
+         ┌───────▼───────┐     ┌──────────────────────┐
+         │ src == dst?   │─YES─► [!!] FAILED, RC=99   │
+         └───────┬───────┘     └──────────────────────┘
+                 │ NO
+         ┌───────▼───────┐
+         │ Auto-mkdir dst│
+         │ Build flags   │
+         │ robocopy runs │
+         └───────┬───────┘
+                 │
+         ┌───────▼───────────┐
+         │ ERRORLEVEL = ?    │
+         └───────┬───────────┘
+            ╱    │      ╲
+         0-3    4-7     8+
+          │      │       │
+     ┌────▼──┐ ┌─▼────┐ ┌▼──────┐
+     │SUCCESS│ │WARN  │ │FAILED │
+     │ [OK]  │ │ [!!] │ │ [!!]  │
+     │  No   │ │PAUSE │ │PAUSE  │
+     │ PAUSE │ │      │ │       │
+     └───────┘ └──────┘ └───────┘
+```
+
+### Flag Variable Quick Reference
+
+```
+  ┌──────────────────┬───────────┬──────────────────────────┐
+  │ Flag Variable    │ OK Value  │ Set By                   │
+  ├──────────────────┼───────────┼──────────────────────────┤
+  │ INPUT_OK         │ 1         │ fn_input_credentials     │
+  │ NET_PING_OK      │ 1         │ fn_test_connection       │
+  │ NET_MAP_OK       │ 1         │ fn_map_credentials       │
+  │ DIRECT_SETUP_OK  │ 1         │ fn_setup_direct_cable    │
+  │ LAST_RC_STATUS   │ SUCCESS   │ fn_run_robocopy          │
+  │ LAST_RC_CODE     │ 0-3       │ fn_run_robocopy          │
+  └──────────────────┴───────────┴──────────────────────────┘
+  
+  Rule: Check flag IMMEDIATELY after calling the function.
+  Rule: If flag = FAIL, PAUSE + return to menu. Never continue.
+```
