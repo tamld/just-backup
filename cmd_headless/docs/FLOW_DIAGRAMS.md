@@ -834,3 +834,321 @@ CMD has no exceptions, no try/catch, no return values from functions.
   Rule: Check flag IMMEDIATELY after calling the function.
   Rule: If flag = FAIL, PAUSE + return to menu. Never continue.
 ```
+
+---
+
+## 13. Two Side Parts -- Local vs Network Architecture
+
+RoboSync operates in two fundamentally different modes based on whether
+a network is involved. This section maps the architecture from the
+end-user's operational perspective.
+
+### 13.1 The Two Worlds
+
+```
+  ╔══════════════════════════════════════════════════════════════════════╗
+  ║                        ROBOSYNC v2.0.0                             ║
+  ╠══════════════════════════════╦═══════════════════════════════════════╣
+  ║                              ║                                      ║
+  ║   SIDE A: LOCAL              ║   SIDE B: NETWORK                    ║
+  ║   (No network needed)        ║   (SMB via net use)                  ║
+  ║                              ║                                      ║
+  ║   Menu: [3] Backup LOCAL     ║   Menu: [1] Backup PUSH             ║
+  ║                              ║         [2] Backup PULL             ║
+  ║                              ║         [5] Network Setup           ║
+  ║                              ║                                      ║
+  ║   Source: Local disk/profile  ║   Source: Local OR Remote           ║
+  ║   Dest:   Local disk/USB     ║   Dest:   Remote OR Local           ║
+  ║                              ║                                      ║
+  ║   Prereqs:                   ║   Prereqs:                           ║
+  ║   - Admin privileges         ║   - Admin privileges                ║
+  ║   - Dest drive exists        ║   - Ethernet/LAN connected          ║
+  ║                              ║   - Remote share + credentials      ║
+  ║                              ║   - Ping + net use success          ║
+  ║                              ║                                      ║
+  ║   Robocopy flags:            ║   Robocopy flags:                    ║
+  ║   - Same as network          ║   - /Z (restartable on drop)        ║
+  ║   - No /Z needed (local)     ║   - /ZB for profiles (locked files) ║
+  ║   - USB uses /MT:8           ║   - /MT:16 for network throughput   ║
+  ║                              ║                                      ║
+  ║   Cleanup:                   ║   Cleanup:                           ║
+  ║   - Pipeline vars only       ║   - net use /delete                 ║
+  ║                              ║   - DHCP restore (if Direct Cable)  ║
+  ║                              ║   - Pipeline vars                    ║
+  ║                              ║                                      ║
+  ╚══════════════════════════════╩═══════════════════════════════════════╝
+```
+
+### 13.2 Side A: Local Backup Flow
+
+No network, no credentials, no cleanup. The fastest path.
+
+```
+  USER
+   │
+   ▼
+  ┌───────────────────────────────────┐
+  │ [3] Backup LOCAL                  │
+  └──────────────┬────────────────────┘
+                 │
+           ┌─────▼───────────────┐
+           │ Enter dest path      │
+           │ e.g. E:\Backup       │
+           │      F:\USB_Backup   │
+           └─────┬───────────────┘
+                 │
+   ┌─────────────▼─────────────────────────┐
+   │         AUTO-DETECT SOURCES           │
+   │                                       │
+   │  ┌──────────────┐  ┌───────────────┐  │
+   │  │ USER PROFILES│  │ DATA DRIVES   │  │
+   │  │              │  │               │  │
+   │  │ C:\Users\    │  │ D:\ (Fixed)   │  │
+   │  │  Admin       │  │ E:\ (Fixed)   │  │
+   │  │  User1       │  │ F:\ (USB)     │  │
+   │  │  User2       │  │ G:\ (USB)     │  │
+   │  │              │  │               │  │
+   │  │ Type:PROFILE │  │ Type:PARTITION │  │
+   │  │              │  │   or USB      │  │
+   │  └──────────────┘  └───────────────┘  │
+   │                                       │
+   │  fsutil identifies drive type:        │
+   │  Fixed Disk --> PARTITION (/MT:16)    │
+   │  Removable  --> USB (/MT:8)           │
+   └─────────────┬─────────────────────────┘
+                 │
+           ┌─────▼───────────────┐
+           │ User picks source:   │
+           │  Single item         │
+           │  Custom path         │
+           │  ALL Profiles        │
+           │  ALL Partitions      │
+           └─────┬───────────────┘
+                 │
+           ┌─────▼───────────────┐
+           │ CONFIRM              │
+           │ Source --> Dest       │
+           │ Type: PROFILE/       │
+           │       PARTITION/USB  │
+           │ [Y/N]?               │
+           └─────┬───────────────┘
+                 │
+           ┌─────▼───────────────┐
+           │ ROBOCOPY ENGINE      │
+           │ fn_build_flags(TYPE) │
+           │ Logs to RS_*.log    │
+           └─────┬───────────────┘
+                 │
+           ┌─────▼───────────────┐
+           │ Exit code parse      │
+           │ 0-3: OK              │
+           │ 4-7: WARN + PAUSE    │
+           │ 8+:  FAIL + PAUSE    │
+           └─────┬───────────────┘
+                 │
+                 ▼
+           Back to source selection
+           (backup more or [0] back)
+```
+
+### 13.3 Side B: Network Backup Flow (Bidirectional)
+
+The key insight: **PUSH and PULL use the same network connection**.
+The only difference is which side is source and which is destination.
+
+```
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    THE BIDIRECTIONAL PRINCIPLE                 │
+  │                                                                │
+  │  Same tool, same net use connection, user decides direction:  │
+  │                                                                │
+  │  ┌────────────────────────────────────────────────────────┐    │
+  │  │                                                        │    │
+  │  │   PUSH: You sit at PC-A, data goes A ══► B            │    │
+  │  │                                                        │    │
+  │  │   ┌───────┐     net use      ┌───────┐               │    │
+  │  │   │ PC-A  │ ════════════════ │ PC-B  │               │    │
+  │  │   │(local)│   robocopy -->   │(remote)│               │    │
+  │  │   │SOURCE │                  │ DEST  │               │    │
+  │  │   └───────┘                  └───────┘               │    │
+  │  │                                                        │    │
+  │  └────────────────────────────────────────────────────────┘    │
+  │                                                                │
+  │  ┌────────────────────────────────────────────────────────┐    │
+  │  │                                                        │    │
+  │  │   PULL: You sit at PC-A, data comes B ══► A            │    │
+  │  │                                                        │    │
+  │  │   ┌───────┐     net use      ┌───────┐               │    │
+  │  │   │ PC-A  │ ════════════════ │ PC-B  │               │    │
+  │  │   │(local)│   <-- robocopy   │(remote)│               │    │
+  │  │   │ DEST  │                  │SOURCE │               │    │
+  │  │   └───────┘                  └───────┘               │    │
+  │  │                                                        │    │
+  │  └────────────────────────────────────────────────────────┘    │
+  │                                                                │
+  │  SYMMETRY: If you take the same tool to PC-B and run it:      │
+  │                                                                │
+  │  ┌────────────────────────────────────────────────────────┐    │
+  │  │                                                        │    │
+  │  │   PUSH from PC-B: data goes B ══► A                    │    │
+  │  │   PULL from PC-B: data comes A ══► B                    │    │
+  │  │                                                        │    │
+  │  │   Same result, different perspective!                   │    │
+  │  │                                                        │    │
+  │  └────────────────────────────────────────────────────────┘    │
+  │                                                                │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+### 13.4 Network Flow -- Detailed
+
+```
+  USER
+   │
+   ├──── [1] PUSH ──── or ──── [2] PULL ────┐
+   │                                         │
+   ▼                                         ▼
+  ┌────────────────────────────────────────────────┐
+  │          SHARED NETWORK SETUP                  │
+  │  (identical for PUSH and PULL)                 │
+  │                                                │
+  │  ┌────────────────┐                            │
+  │  │ Network Type?   │                            │
+  │  │ [1] Direct Cable│──► netsh set static IP     │
+  │  │ [2] DHCP        │──► skip IP setup           │
+  │  │ [0] Cancel      │──► MainMenu                │
+  │  └───────┬─────────┘                            │
+  │          │                                      │
+  │  ┌───────▼─────────┐                            │
+  │  │ Input:           │                            │
+  │  │  IP, Share,      │                            │
+  │  │  User, Password  │                            │
+  │  └───────┬─────────┘                            │
+  │          │                                      │
+  │  ┌───────▼─────────┐                            │
+  │  │ Ping ──► Map     │                            │
+  │  │ NET_PASS erased  │                            │
+  │  └───────┬─────────┘                            │
+  │          │                                      │
+  │     NETWORK_PATH = \\IP\Share                   │
+  └──────────┬─────────────────────────────────────┘
+             │
+      ┌──────┴──────┐
+      │              │
+    PUSH            PULL
+      │              │
+      ▼              ▼
+  ┌──────────┐  ┌──────────────┐
+  │SRC=Local │  │SRC=Remote    │
+  │DST=Remote│  │   (UNC path) │
+  │          │  │DST=Local     │
+  │Auto-     │  │   (user      │
+  │detect    │  │    enters    │
+  │profiles  │  │    path)     │
+  │partitions│  │              │
+  │          │  │List remote   │
+  │SelectSrc │  │folders       │
+  │flow      │  │via for /d    │
+  └────┬─────┘  └──────┬───────┘
+       │               │
+       ▼               ▼
+  ┌────────────────────────────┐
+  │    ROBOCOPY ENGINE         │
+  │    (same for both)         │
+  │    /Z = auto-resume        │
+  │    /MT:16 = network speed  │
+  └────────────┬───────────────┘
+               │
+         Exit code parse
+               │
+               ▼
+         Back to source selection
+```
+
+### 13.5 Source/Destination Matrix
+
+```
+  ┌────────────────────┬───────────────────┬───────────────────────────┐
+  │ Mode               │ Source            │ Destination               │
+  ├────────────────────┼───────────────────┼───────────────────────────┤
+  │ [1] PUSH           │ LOCAL auto-detect │ REMOTE (\\IP\Share)       │
+  │                    │ (profiles, drives)│                           │
+  ├────────────────────┼───────────────────┼───────────────────────────┤
+  │ [2] PULL           │ REMOTE (\\IP\     │ LOCAL (user enters path)  │
+  │                    │  Share\folder)    │                           │
+  ├────────────────────┼───────────────────┼───────────────────────────┤
+  │ [3] LOCAL          │ LOCAL auto-detect │ LOCAL (user enters path)  │
+  │                    │ (profiles, drives)│                           │
+  ├────────────────────┼───────────────────┼───────────────────────────┤
+  │ [4A] Restore Merge │ LOCAL or REMOTE   │ LOCAL profile             │
+  │                    │ backup folder     │ (C:\Users\<name>)         │
+  ├────────────────────┼───────────────────┼───────────────────────────┤
+  │ [4B] Restore Mirror│ LOCAL or REMOTE   │ LOCAL (user enters path)  │
+  │                    │ backup folder     │                           │
+  └────────────────────┴───────────────────┴───────────────────────────┘
+```
+
+### 13.6 The Constraint: Local vs Remote Asymmetry
+
+```
+  ┌────────────────────────────────────────────────────────────────┐
+  │                WHAT YOU CAN DO                                 │
+  ├───────────────────────────┬────────────────────────────────────┤
+  │ On LOCAL drives           │ On REMOTE shares (via net use)     │
+  ├───────────────────────────┼────────────────────────────────────┤
+  │ fsutil (drive type)       │ CANNOT -- no fsutil over SMB      │
+  │ for /f + system commands  │ CANNOT -- no remote execution     │
+  │ Auto-detect profiles      │ CANNOT -- can only list folders   │
+  │ Auto-detect USB vs Fixed  │ CANNOT -- all treated as CUSTOM   │
+  │ Read file attributes      │ CAN -- robocopy handles this      │
+  │ Create directories        │ CAN -- mkdir on UNC path          │
+  │ Copy files (robocopy)     │ CAN -- bidirectional              │
+  │ List folders (for /d)     │ CAN -- for /d on \\IP\Share\*     │
+  └───────────────────────────┴────────────────────────────────────┘
+
+  IMPLICATION FOR PUSH vs PULL:
+  ─────────────────────────────
+  PUSH: Auto-detect works (source is local) --> smart flag selection
+  PULL: Auto-detect doesn't work (source is remote) --> CUSTOM flags only
+  
+  This is WHY PUSH has richer source selection (profiles, partitions, USB)
+  while PULL only lists remote folders and uses CUSTOM type.
+```
+
+### 13.7 Version Roadmap -- Enhance Bidirectional UX
+
+Current state (v2.0.0) and future enhancement path:
+
+```
+  v2.0.0 (CURRENT)
+  ┌──────────────────────────────────────────┐
+  │ Menu: PUSH / PULL / LOCAL                │
+  │ User must understand direction concept   │
+  │ Separate flows for each mode             │
+  │ Network setup embedded in PUSH/PULL      │
+  └──────────────────────────────────────────┘
+                    │
+                    ▼ (future enhancement)
+  v2.x.0 (PROPOSED)
+  ┌──────────────────────────────────────────┐
+  │ Menu: BACKUP / RESTORE / NETWORK         │
+  │                                          │
+  │ BACKUP flow:                             │
+  │  Step 1: "Where is the data?"            │
+  │          [1] On THIS PC (local source)   │
+  │          [2] On ANOTHER PC (remote src)  │
+  │                                          │
+  │  Step 2: "Where to save the backup?"     │
+  │          [1] On THIS PC (local dest)     │
+  │          [2] On ANOTHER PC (remote dest) │
+  │          [3] On USB drive                │
+  │                                          │
+  │  Step 3: System auto-determines:         │
+  │          local+remote = PUSH             │
+  │          remote+local = PULL             │
+  │          local+local  = LOCAL            │
+  │                                          │
+  │  User doesn't need to know PUSH/PULL    │
+  │  terminology -- just answers questions   │
+  └──────────────────────────────────────────┘
+```
