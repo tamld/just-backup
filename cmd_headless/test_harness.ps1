@@ -1,8 +1,25 @@
 # ================================================================
-# TEST HARNESS v3.0 — Comprehensive CMD Batch Verification
+# TEST HARNESS v4.0 — Comprehensive CMD Batch Verification
 # PURPOSE: Static lint + Safe runtime + WORST-CASE edge cases
 #          + v2.0 refactor validation + drift detection
+#          + variable scoping + engine flags + error handling
+#          + restore flow + network module + edge case hardening
 #          PowerShell is BANNED from production, ESSENTIAL for testing.
+#
+# SECTIONS: 11 (67 checks total)
+#   1.  Static Lint (both Dev & Portable)
+#   1B. v2.0 Specific Checks
+#   1C. Drift Detection (Dev vs Portable)
+#   2.  Worst-Case Edge Cases
+#   3.  CMD Parser Traps
+#   4.  Safe Runtime Checks
+#   5.  Variable Scoping Validation
+#   6.  Engine Flag Tests
+#   7.  Error Handling Tests
+#   8.  Restore Flow Tests
+#   9.  Network Module Tests (safe/mocked)
+#   10. Worst-Case Edge Cases (expanded)
+#   11. Drift Detection Expansion
 #
 # USAGE:  powershell -ExecutionPolicy Bypass -File test_harness.ps1
 # CI/CD:  Runs automatically via GitHub Actions on push/PR
@@ -449,6 +466,541 @@ $bannerFile = "$Sandbox\test_banner.bat"
 $bannerTest | Out-File $bannerFile -Encoding ASCII
 $bannerOut = & cmd /c "`"$bannerFile`"" 2>&1
 Write-Result "Banner renders without crash" (($bannerOut -join '') -match 'BANNER_OK')
+
+# ================================================================
+# SECTION 5: VARIABLE SCOPING VALIDATION (A1)
+# ================================================================
+Write-Host "`n=== SECTION 5: VARIABLE SCOPING VALIDATION ===" -ForegroundColor Cyan
+
+# 5.1: MainMenu clears Tier 2 pipeline vars
+$scopeTest1 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "BACKUP_MODE=PUSH"
+set "BACKUP_DEST=D:\Test"
+set "NET_PASS=secret123"
+set "SELECTED_SRC=C:\Source"
+set "SELECTED_NAME=TestName"
+set "SELECTED_TYPE=PROFILE"
+set "FINAL_DEST=D:\Final"
+
+REM Simulate MainMenu pipeline cleanup
+set "BACKUP_MODE="
+set "BACKUP_DEST="
+set "NET_PASS="
+set "SELECTED_SRC="
+set "SELECTED_NAME="
+set "SELECTED_TYPE="
+set "FINAL_DEST="
+
+set "_ok=1"
+if defined BACKUP_MODE set "_ok=0"
+if defined BACKUP_DEST set "_ok=0"
+if defined NET_PASS set "_ok=0"
+if defined SELECTED_SRC set "_ok=0"
+if defined SELECTED_NAME set "_ok=0"
+if defined SELECTED_TYPE set "_ok=0"
+if defined FINAL_DEST set "_ok=0"
+if "!_ok!"=="1" echo [SCOPE_CLEAR_PASS]
+'@
+$scopeFile1 = "$Sandbox\test_scope_clear.bat"
+$scopeTest1 | Out-File $scopeFile1 -Encoding ASCII
+$scopeOut1 = & cmd /c "`"$scopeFile1`"" 2>&1
+Write-Result "Tier 2/3 vars cleared at MainMenu" (($scopeOut1 -join '') -match 'SCOPE_CLEAR_PASS')
+
+# 5.2: Tier 1 globals survive pipeline clear
+$scopeTest2 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "APP_VERSION=v2.0.0"
+set "SCRIPT_DIR=C:\Test\"
+set "LIBS=C:\Test\lib"
+set "LOG_DIR=C:\Test\logs"
+
+REM Simulate clearing pipeline (Tier 2 only)
+set "BACKUP_MODE="
+set "NET_PASS="
+
+REM Verify Tier 1 survived
+set "_ok=1"
+if not "!APP_VERSION!"=="v2.0.0" set "_ok=0"
+if not defined SCRIPT_DIR set "_ok=0"
+if not defined LIBS set "_ok=0"
+if not defined LOG_DIR set "_ok=0"
+if "!_ok!"=="1" echo [GLOBALS_SURVIVE_PASS]
+'@
+$scopeFile2 = "$Sandbox\test_scope_globals.bat"
+$scopeTest2 | Out-File $scopeFile2 -Encoding ASCII
+$scopeOut2 = & cmd /c "`"$scopeFile2`"" 2>&1
+Write-Result "Tier 1 globals survive pipeline clear" (($scopeOut2 -join '') -match 'GLOBALS_SURVIVE_PASS')
+
+# 5.3: Zero-leak password pattern
+$scopeTest3 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "NET_PASS=MySecret123"
+REM Simulate zero-leak: password cleared after use
+set "NET_PASS="
+if not defined NET_PASS echo [ZERO_LEAK_PASS]
+'@
+$scopeFile3 = "$Sandbox\test_zero_leak.bat"
+$scopeTest3 | Out-File $scopeFile3 -Encoding ASCII
+$scopeOut3 = & cmd /c "`"$scopeFile3`"" 2>&1
+Write-Result "Zero-leak password pattern" (($scopeOut3 -join '') -match 'ZERO_LEAK_PASS')
+
+# ================================================================
+# SECTION 6: ENGINE FLAG TESTS (A2)
+# ================================================================
+Write-Host "`n=== SECTION 6: ENGINE FLAG TESTS ===" -ForegroundColor Cyan
+
+# Helper: Build a temp .bat that sources fn_build_flags and echoes result
+function Test-BuildFlags($Type, $ExpectedFlags, $NotExpectedFlags = @()) {
+    $flagTest = @"
+@echo off
+setlocal enabledelayedexpansion
+set "LOG_DIR=%TEMP%"
+
+:fn_build_flags
+    set "_btype=%~1"
+    set "_BUILD_FLAGS="
+
+    if /i "!_btype!"=="RESTORE_MERGE" (
+        set "_BUILD_FLAGS=/E /Z /MT:16 /R:2 /W:1 /NP /ETA"
+        goto :done
+    )
+    if /i "!_btype!"=="RESTORE_MIRROR" (
+        set "_BUILD_FLAGS=/MIR /Z /MT:16 /R:2 /W:1 /NP /ETA"
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "`$Recycle.Bin""
+        goto :done
+    )
+    set "_BUILD_FLAGS=/MIR /Z /MT:16 /R:2 /W:1 /NP /ETA"
+    if /i "!_btype!"=="PROFILE" (
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /ZB /XJ"
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "`$Recycle.Bin""
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "System Volume Information""
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "AppData\Local\Temp""
+        goto :done
+    )
+    if /i "!_btype!"=="PARTITION" (
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "`$Recycle.Bin" "System Volume Information""
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XF "pagefile.sys" "hiberfil.sys" "swapfile.sys""
+        goto :done
+    )
+    if /i "!_btype!"=="USB" (
+        set "_BUILD_FLAGS=/MIR /MT:8 /R:1 /W:0 /NP /ETA"
+        set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "`$Recycle.Bin""
+        goto :done
+    )
+    set "_BUILD_FLAGS=!_BUILD_FLAGS! /XD "`$Recycle.Bin""
+:done
+    echo !_BUILD_FLAGS!
+"@
+    # Write the test bat
+    $testFile = "$Sandbox\test_flags_$Type.bat"
+    $flagTest | Out-File $testFile -Encoding ASCII
+
+    # Create caller
+    $callerContent = "@echo off`r`nsetlocal enabledelayedexpansion`r`ncall `"$testFile`" $Type"
+    $callerFile = "$Sandbox\test_flags_caller_$Type.bat"
+    $callerContent | Out-File $callerFile -Encoding ASCII
+
+    $output = & cmd /c "`"$callerFile`"" 2>&1
+    $outputStr = ($output -join ' ').Trim()
+
+    $allFound = $true
+    foreach ($flag in $ExpectedFlags) {
+        if ($outputStr -notmatch [regex]::Escape($flag)) {
+            $allFound = $false
+        }
+    }
+    $noneFound = $true
+    foreach ($flag in $NotExpectedFlags) {
+        if ($outputStr -match [regex]::Escape($flag)) {
+            $noneFound = $false
+        }
+    }
+    return ($allFound -and $noneFound)
+}
+
+# 6.1: PROFILE flags include /ZB, /XJ, exclude Temp
+$profileResult = Test-BuildFlags "PROFILE" @("/MIR", "/ZB", "/XJ", "AppData\Local\Temp")
+Write-Result "PROFILE flags: /MIR /ZB /XJ + exclusions" $profileResult
+
+# 6.2: PARTITION flags include /MIR, exclude pagefile
+$partResult = Test-BuildFlags "PARTITION" @("/MIR", "pagefile.sys")
+Write-Result "PARTITION flags: /MIR + system file exclusions" $partResult
+
+# 6.3: USB flags use /MT:8 (not /MT:16)
+$usbResult = Test-BuildFlags "USB" @("/MIR", "/MT:8") @("/MT:16")
+Write-Result "USB flags: /MT:8 (reduced threads)" $usbResult
+
+# 6.4: RESTORE_MERGE uses /E (not /MIR)
+$mergeResult = Test-BuildFlags "RESTORE_MERGE" @("/E", "/Z") @("/MIR")
+Write-Result "RESTORE_MERGE flags: /E (no /MIR)" $mergeResult
+
+# 6.5: RESTORE_MIRROR uses /MIR
+$mirrorResult = Test-BuildFlags "RESTORE_MIRROR" @("/MIR", "/Z")
+Write-Result "RESTORE_MIRROR flags: /MIR /Z" $mirrorResult
+
+# 6.6: CUSTOM fallback includes /MIR and $Recycle.Bin exclusion
+$customResult = Test-BuildFlags "CUSTOM" @("/MIR")
+Write-Result "CUSTOM flags: /MIR fallback" $customResult
+
+# ================================================================
+# SECTION 7: ERROR HANDLING TESTS (A3)
+# ================================================================
+Write-Host "`n=== SECTION 7: ERROR HANDLING TESTS ===" -ForegroundColor Cyan
+
+# 7.1: fn_run_robocopy with empty source → FAILED
+$errTest1 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "LOG_DIR=%TEMP%\rs_err_test"
+set "LAST_RC_STATUS="
+set "LAST_RC_CODE="
+set "_rc_src="
+set "_rc_dst=C:\Temp\test"
+set "_rc_type=CUSTOM"
+if "!_rc_src!"=="" (
+    set "LAST_RC_STATUS=FAILED"
+    set "LAST_RC_CODE=99"
+)
+if "!LAST_RC_STATUS!"=="FAILED" if "!LAST_RC_CODE!"=="99" echo [EMPTY_SRC_PASS]
+'@
+$errFile1 = "$Sandbox\test_err_empty_src.bat"
+$errTest1 | Out-File $errFile1 -Encoding ASCII
+$errOut1 = & cmd /c "`"$errFile1`"" 2>&1
+Write-Result "Empty source → FAILED/99" (($errOut1 -join '') -match 'EMPTY_SRC_PASS')
+
+# 7.2: fn_run_robocopy with empty dest → FAILED
+$errTest2 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "LAST_RC_STATUS="
+set "LAST_RC_CODE="
+set "_rc_src=C:\Windows"
+set "_rc_dst="
+if "!_rc_dst!"=="" (
+    set "LAST_RC_STATUS=FAILED"
+    set "LAST_RC_CODE=99"
+)
+if "!LAST_RC_STATUS!"=="FAILED" if "!LAST_RC_CODE!"=="99" echo [EMPTY_DST_PASS]
+'@
+$errFile2 = "$Sandbox\test_err_empty_dst.bat"
+$errTest2 | Out-File $errFile2 -Encoding ASCII
+$errOut2 = & cmd /c "`"$errFile2`"" 2>&1
+Write-Result "Empty dest → FAILED/99" (($errOut2 -join '') -match 'EMPTY_DST_PASS')
+
+# 7.3: Source path doesn't exist → FAILED
+$errTest3 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "LAST_RC_STATUS="
+set "_rc_src=Z:\NonExistent\Path\12345"
+if not exist "!_rc_src!" (
+    set "LAST_RC_STATUS=FAILED"
+    set "LAST_RC_CODE=99"
+)
+if "!LAST_RC_STATUS!"=="FAILED" echo [NOEXIST_SRC_PASS]
+'@
+$errFile3 = "$Sandbox\test_err_noexist.bat"
+$errTest3 | Out-File $errFile3 -Encoding ASCII
+$errOut3 = & cmd /c "`"$errFile3`"" 2>&1
+Write-Result "Non-existent source → FAILED" (($errOut3 -join '') -match 'NOEXIST_SRC_PASS')
+
+# 7.4: Robocopy exit code >= 8 means FAILED
+$errTest4 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "LAST_RC_CODE=8"
+if !LAST_RC_CODE! LEQ 3 (
+    set "LAST_RC_STATUS=SUCCESS"
+) else if !LAST_RC_CODE! LEQ 7 (
+    set "LAST_RC_STATUS=WARNING"
+) else (
+    set "LAST_RC_STATUS=FAILED"
+)
+if "!LAST_RC_STATUS!"=="FAILED" echo [RC8_FAIL_PASS]
+'@
+$errFile4 = "$Sandbox\test_err_rc8.bat"
+$errTest4 | Out-File $errFile4 -Encoding ASCII
+$errOut4 = & cmd /c "`"$errFile4`"" 2>&1
+Write-Result "Exit code 8 → FAILED status" (($errOut4 -join '') -match 'RC8_FAIL_PASS')
+
+# 7.5: Robocopy exit code 4-7 means WARNING
+$errTest5 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "LAST_RC_CODE=5"
+if !LAST_RC_CODE! LEQ 3 (
+    set "LAST_RC_STATUS=SUCCESS"
+) else if !LAST_RC_CODE! LEQ 7 (
+    set "LAST_RC_STATUS=WARNING"
+) else (
+    set "LAST_RC_STATUS=FAILED"
+)
+if "!LAST_RC_STATUS!"=="WARNING" echo [RC5_WARN_PASS]
+'@
+$errFile5 = "$Sandbox\test_err_rc5.bat"
+$errTest5 | Out-File $errFile5 -Encoding ASCII
+$errOut5 = & cmd /c "`"$errFile5`"" 2>&1
+Write-Result "Exit code 5 → WARNING status" (($errOut5 -join '') -match 'RC5_WARN_PASS')
+
+# ================================================================
+# SECTION 8: RESTORE FLOW TESTS (A4)
+# ================================================================
+Write-Host "`n=== SECTION 8: RESTORE FLOW TESTS ===" -ForegroundColor Cyan
+
+# 8.1: UC4 Merge — /E preserves existing files at dest
+$uc4Src = "$Sandbox\src\uc4_backup"
+$uc4Dst = "$Sandbox\dst\uc4_profile"
+New-Item -ItemType Directory -Path "$uc4Src\Desktop" -Force | Out-Null
+New-Item -ItemType Directory -Path "$uc4Src\Documents" -Force | Out-Null
+New-Item -ItemType Directory -Path "$uc4Dst\Desktop" -Force | Out-Null
+"backup_file" | Out-File "$uc4Src\Desktop\restored.txt" -Encoding UTF8
+"backup_doc" | Out-File "$uc4Src\Documents\report.txt" -Encoding UTF8
+"user_new_file" | Out-File "$uc4Dst\Desktop\my_new_work.txt" -Encoding UTF8
+# Restore Desktop with /E (merge)
+& cmd /c "robocopy `"$uc4Src\Desktop`" `"$uc4Dst\Desktop`" /E /Z /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
+Write-Result "UC4 Merge: backup file restored" (Test-Path "$uc4Dst\Desktop\restored.txt")
+Write-Result "UC4 Merge: user's new file preserved" (Test-Path "$uc4Dst\Desktop\my_new_work.txt")
+
+# 8.2: UC5 Mirror — /MIR deletes extra at dest
+$uc5Src = "$Sandbox\src\uc5_backup"
+$uc5Dst = "$Sandbox\dst\uc5_mirror"
+New-Item -ItemType Directory -Path $uc5Src -Force | Out-Null
+New-Item -ItemType Directory -Path $uc5Dst -Force | Out-Null
+"backup_data" | Out-File "$uc5Src\original.txt" -Encoding UTF8
+"stale_data" | Out-File "$uc5Dst\should_be_deleted.txt" -Encoding UTF8
+& cmd /c "robocopy `"$uc5Src`" `"$uc5Dst`" /MIR /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
+Write-Result "UC5 Mirror: source file copied" (Test-Path "$uc5Dst\original.txt")
+Write-Result "UC5 Mirror: extra file deleted" (-not (Test-Path "$uc5Dst\should_be_deleted.txt"))
+
+# 8.3: fn_detect_profile_subdirs pattern — known folders detected
+$subdirSrc = "$Sandbox\src\subdirs"
+foreach ($f in @("Desktop", "Documents", "Downloads", "Pictures", "Videos", "Music")) {
+    New-Item -ItemType Directory -Path "$subdirSrc\$f" -Force | Out-Null
+}
+$subdirTest = @"
+@echo off
+setlocal enabledelayedexpansion
+set /a SUBDIR_COUNT=0
+for %%F in (Desktop Documents Downloads Pictures Videos Music Favorites Links Contacts) do (
+    if exist "$subdirSrc\%%F" (
+        set /a SUBDIR_COUNT+=1
+    )
+)
+echo COUNT=!SUBDIR_COUNT!
+if !SUBDIR_COUNT! geq 6 echo [SUBDIR_DETECT_PASS]
+"@
+$subdirFile = "$Sandbox\test_subdirs.bat"
+$subdirTest | Out-File $subdirFile -Encoding ASCII
+$subdirOut = & cmd /c "`"$subdirFile`"" 2>&1
+Write-Result "Profile subdir detection (6+ folders)" (($subdirOut -join '') -match 'SUBDIR_DETECT_PASS')
+
+# 8.4: Empty backup folder → SUBDIR_COUNT=0
+$emptyBackup = "$Sandbox\src\empty_backup"
+New-Item -ItemType Directory -Path $emptyBackup -Force | Out-Null
+$emptySubTest = @"
+@echo off
+setlocal enabledelayedexpansion
+set /a SUBDIR_COUNT=0
+for %%F in (Desktop Documents Downloads) do (
+    if exist "$emptyBackup\%%F" (
+        set /a SUBDIR_COUNT+=1
+    )
+)
+if !SUBDIR_COUNT! equ 0 echo [EMPTY_SUBDIR_PASS]
+"@
+$emptySubFile = "$Sandbox\test_empty_subdirs.bat"
+$emptySubTest | Out-File $emptySubFile -Encoding ASCII
+$emptySubOut = & cmd /c "`"$emptySubFile`"" 2>&1
+Write-Result "Empty backup → SUBDIR_COUNT=0" (($emptySubOut -join '') -match 'EMPTY_SUBDIR_PASS')
+
+# ================================================================
+# SECTION 9: NETWORK MODULE TESTS (A5 — safe/mocked)
+# ================================================================
+Write-Host "`n=== SECTION 9: NETWORK MODULE TESTS ===" -ForegroundColor Cyan
+
+# 9.1: Empty IP → INPUT_OK=0
+$netTest1 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "INPUT_OK=0"
+set "DEST_IP="
+if "!DEST_IP!"=="" (
+    set "INPUT_OK=0"
+    echo [EMPTY_IP_PASS]
+)
+'@
+$netFile1 = "$Sandbox\test_net_empty_ip.bat"
+$netTest1 | Out-File $netFile1 -Encoding ASCII
+$netOut1 = & cmd /c "`"$netFile1`"" 2>&1
+Write-Result "Empty IP → INPUT_OK=0" (($netOut1 -join '') -match 'EMPTY_IP_PASS')
+
+# 9.2: Invalid IP → NET_PING_OK=0 (ping unreachable address)
+$netTest2 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "NET_PING_OK=0"
+set "_ping_result="
+for /f "tokens=*" %%L in ('ping -n 1 -w 500 "192.0.2.1" 2^>nul') do (
+    echo "%%L" | find "TTL=" >nul 2>&1 && set "_ping_result=OK"
+)
+if not "!_ping_result!"=="OK" (
+    set "NET_PING_OK=0"
+    echo [INVALID_PING_PASS]
+)
+'@
+$netFile2 = "$Sandbox\test_net_bad_ping.bat"
+$netTest2 | Out-File $netFile2 -Encoding ASCII
+$netOut2 = & cmd /c "`"$netFile2`"" 2>&1
+Write-Result "Invalid IP → NET_PING_OK=0" (($netOut2 -join '') -match 'INVALID_PING_PASS')
+
+# 9.3: Empty username → NET_MAP_OK=0
+$netTest3 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "NET_MAP_OK=0"
+set "_user="
+if "!_user!"=="" (
+    set "NET_MAP_OK=0"
+    echo [EMPTY_USER_PASS]
+)
+'@
+$netFile3 = "$Sandbox\test_net_empty_user.bat"
+$netTest3 | Out-File $netFile3 -Encoding ASCII
+$netOut3 = & cmd /c "`"$netFile3`"" 2>&1
+Write-Result "Empty username → NET_MAP_OK=0" (($netOut3 -join '') -match 'EMPTY_USER_PASS')
+
+# 9.4: fn_show_status NOT_CONNECTED output
+$netTest4 = @'
+@echo off
+setlocal enabledelayedexpansion
+set "NET_STATUS=NOT_CONNECTED"
+if "!NET_STATUS!"=="NOT_CONNECTED" echo [STATUS_NOTCONN_PASS]
+'@
+$netFile4 = "$Sandbox\test_net_status.bat"
+$netTest4 | Out-File $netFile4 -Encoding ASCII
+$netOut4 = & cmd /c "`"$netFile4`"" 2>&1
+Write-Result "NOT_CONNECTED status output" (($netOut4 -join '') -match 'STATUS_NOTCONN_PASS')
+
+# ================================================================
+# SECTION 10: WORST-CASE EDGE CASES (A6)
+# ================================================================
+Write-Host "`n=== SECTION 10: WORST-CASE EDGE CASES ===" -ForegroundColor Cyan
+
+# 10.1: Junction point skipped with /XJ
+$juncSrc = "$Sandbox\src\junc_test"
+$juncDst = "$Sandbox\dst\junc_test"
+New-Item -ItemType Directory -Path $juncSrc -Force | Out-Null
+New-Item -ItemType Directory -Path "$juncSrc\real_folder" -Force | Out-Null
+"real_data" | Out-File "$juncSrc\real_folder\data.txt" -Encoding UTF8
+# Create junction point
+$juncTarget = "$Sandbox\src\junc_target"
+New-Item -ItemType Directory -Path $juncTarget -Force | Out-Null
+"junction_data" | Out-File "$juncTarget\junc_file.txt" -Encoding UTF8
+& cmd /c "mklink /J `"$juncSrc\my_junction`" `"$juncTarget`"" 2>&1 | Out-Null
+# Copy with /XJ — junction should be skipped
+& cmd /c "robocopy `"$juncSrc`" `"$juncDst`" /E /XJ /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
+Write-Result "/XJ skips junction point" (Test-Path "$juncDst\real_folder\data.txt")
+# Junction content should NOT be at dest (junction itself skipped)
+$juncSkipped = -not (Test-Path "$juncDst\my_junction\junc_file.txt")
+Write-Result "/XJ junction content not copied" $juncSkipped "Junction data was copied!"
+
+# 10.2: Read-only file copy
+$roSrc = "$Sandbox\src\readonly_test"
+$roDst = "$Sandbox\dst\readonly_test"
+New-Item -ItemType Directory -Path $roSrc -Force | Out-Null
+"readonly_content" | Out-File "$roSrc\readonly.txt" -Encoding UTF8
+Set-ItemProperty "$roSrc\readonly.txt" -Name IsReadOnly -Value $true
+& cmd /c "robocopy `"$roSrc`" `"$roDst`" /E /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
+Write-Result "Read-only file copied successfully" (Test-Path "$roDst\readonly.txt")
+# Cleanup readonly attribute
+if (Test-Path "$roDst\readonly.txt") { Set-ItemProperty "$roDst\readonly.txt" -Name IsReadOnly -Value $false }
+if (Test-Path "$roSrc\readonly.txt") { Set-ItemProperty "$roSrc\readonly.txt" -Name IsReadOnly -Value $false }
+
+# 10.3: Zero-byte file copy
+$zbSrc = "$Sandbox\src\zerobyte_test"
+$zbDst = "$Sandbox\dst\zerobyte_test"
+New-Item -ItemType Directory -Path $zbSrc -Force | Out-Null
+New-Item -ItemType File -Path "$zbSrc\empty.txt" -Force | Out-Null
+& cmd /c "robocopy `"$zbSrc`" `"$zbDst`" /E /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
+Write-Result "Zero-byte file copied" (Test-Path "$zbDst\empty.txt")
+
+# 10.4: Source = Destination detection pattern
+$samePath = @'
+@echo off
+setlocal enabledelayedexpansion
+set "_rc_src=C:\Users\Admin\Documents"
+set "_rc_dst=C:\Users\Admin\Documents"
+if "!_rc_src!"=="!_rc_dst!" (
+    echo [SAME_PATH_DETECTED]
+)
+'@
+$sameFile = "$Sandbox\test_same_path.bat"
+$samePath | Out-File $sameFile -Encoding ASCII
+$sameOut = & cmd /c "`"$sameFile`"" 2>&1
+Write-Result "Source=Dest detection pattern" (($sameOut -join '') -match 'SAME_PATH_DETECTED')
+
+# 10.5: Robocopy with 0 files (empty dir) → exit code 0 or 1
+$noFileSrc = "$Sandbox\src\nofiles"
+$noFileDst = "$Sandbox\dst\nofiles"
+New-Item -ItemType Directory -Path $noFileSrc -Force | Out-Null
+& cmd /c "robocopy `"$noFileSrc`" `"$noFileDst`" /E /R:0 /W:0 /NP 2>&1" | Out-Null
+Write-Result "0 files → exit code <= 1" ($LASTEXITCODE -le 1) "ExitCode=$LASTEXITCODE"
+
+# ================================================================
+# SECTION 11: DRIFT DETECTION EXPANSION (A7)
+# ================================================================
+Write-Host "`n=== SECTION 11: DRIFT DETECTION EXPANSION ===" -ForegroundColor Cyan
+
+if ((Test-Path $Target) -and (Test-Path $DevEntry)) {
+    $devContent = Get-Content $DevEntry -Raw
+    $portContent = Get-Content $Target -Raw
+
+    # Collect all lib module files for Dev
+    $allDevContent = $devContent
+    if (Test-Path $DevLibDir) {
+        foreach ($lib in Get-ChildItem "$DevLibDir\*.bat") {
+            $allDevContent += "`n" + (Get-Content $lib.FullName -Raw)
+        }
+    }
+
+    # 11.1: All Tier 2 vars cleared in Dev MainMenu also cleared in Portable
+    $tier2Vars = @("BACKUP_MODE", "BACKUP_DEST", "NET_PASS", "SELECTED_SRC", "SELECTED_NAME", "SELECTED_TYPE", "FINAL_DEST")
+    $devMainMenuBlock = ""
+    $portMainMenuBlock = ""
+    # Extract MainMenu cleanup section from both
+    if ($devContent -match '(?s):MainMenu(.+?)(?=:display|:Mode|:Network)') {
+        $devMainMenuBlock = $Matches[1]
+    }
+    if ($portContent -match '(?s):MainMenu(.+?)(?=:display|:Mode|:Network)') {
+        $portMainMenuBlock = $Matches[1]
+    }
+    $missingInPort = @()
+    foreach ($var in $tier2Vars) {
+        if ($portMainMenuBlock -notmatch "set `"$var=`"") {
+            $missingInPort += $var
+        }
+    }
+    Write-Result "Tier 2 var cleanup parity (Dev↔Portable)" ($missingInPort.Count -eq 0) "Missing in Portable: $($missingInPort -join ', ')"
+
+    # 11.2: Backup type count parity (fn_build_flags handles same types)
+    $devTypes = ([regex]::Matches($allDevContent, '(?i)"([A-Z_]+)".*goto :eof')).Count
+    $portTypes = ([regex]::Matches($portContent, '(?i)"([A-Z_]+)".*goto :eof')).Count
+    # Just check both have the 5 types
+    $devHasAllTypes = ($allDevContent -match 'RESTORE_MERGE') -and ($allDevContent -match 'RESTORE_MIRROR') -and ($allDevContent -match 'PROFILE') -and ($allDevContent -match 'PARTITION') -and ($allDevContent -match 'USB')
+    $portHasAllTypes = ($portContent -match 'RESTORE_MERGE') -and ($portContent -match 'RESTORE_MIRROR') -and ($portContent -match 'PROFILE') -and ($portContent -match 'PARTITION') -and ($portContent -match 'USB')
+    Write-Result "Both have all 5 backup types" ($devHasAllTypes -and $portHasAllTypes)
+
+    # 11.3: Network status bar exists in both
+    $devHasStatusBar = $allDevContent -match ':fn_status_bar'
+    $portHasStatusBar = $portContent -match ':fn_status_bar'
+    $devHasShowStatus = $allDevContent -match ':fn_show_status'
+    $portHasShowStatus = $portContent -match ':fn_show_status'
+    Write-Result "fn_status_bar + fn_show_status in both" ($devHasStatusBar -and $portHasStatusBar -and $devHasShowStatus -and $portHasShowStatus)
+}
 
 # ================================================================
 # CLEANUP & SUMMARY

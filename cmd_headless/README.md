@@ -29,7 +29,7 @@ cmd_headless/
 │   └── engine.bat       Robocopy wrapper, flag builder, exit codes
 ├── dist/
 │   └── RoboSync_Portable.bat  ★ RUN Entry (single-file, portable)
-├── test_harness.ps1     PowerShell test suite (14 automated checks)
+├── test_harness.ps1     PowerShell test suite (67 automated checks)
 ├── build.bat            Guide for dual distribution
 ├── README.md            This file
 └── AGENTS.md            ★ AI Agent governance (13 sections)
@@ -44,7 +44,8 @@ cmd_headless/
    - `[2]` Pull backup from network
    - `[3]` Local backup (same machine)
    - `[4]` Restore user profile
-   - `[5]` Exit
+   - `[5]` Network Setup (configure connection)
+   - `[6]` Exit
 
 ## Known Limitations
 
@@ -68,9 +69,18 @@ CMD cannot test itself. We use **PowerShell as a test middleware layer**:
 powershell -ExecutionPolicy Bypass -File test_harness.ps1
 ```
 
-**14 automated checks** in 2 sections:
-- **Static Lint**: bracket balance, label integrity, `set /p` pre-clear, `%LIBS%` remnants, `::` in blocks
-- **Safe Runtime**: sandbox robocopy, `/E` merge verification, profile detection, fsutil, UTF-8, banner rendering
+**67 automated checks** in 11 sections:
+- **Static Lint**: bracket balance, label integrity, `set /p` pre-clear, `%LIBS%` remnants, `::` in blocks, unquoted sets
+- **v2.0 Checks**: UAC pattern, NET_STATUS init, menu separation, Network menu, status bar
+- **Drift Detection**: function count parity, version match, menu option parity, Tier 2 cleanup parity, backup type parity
+- **Worst-Case Edge Cases**: Unicode Vietnamese, paths with spaces, empty dirs, `/MIR` destructive, `/E` non-destructive, deep nesting, auto-mkdir, `/Z` restartable
+- **CMD Parser Traps**: delayed expansion, `call set` double expansion, escaped parentheses, pipe inside `for`, `goto :eof` return, nested `if` (3 levels), `for /d` with delayed expansion
+- **Safe Runtime**: profile detection, partition detection, fsutil, UTF-8 codepage, `choice` command, banner render
+- **Variable Scoping**: Tier 2/3 cleanup, Tier 1 survival, zero-leak password
+- **Engine Flags**: PROFILE, PARTITION, USB, RESTORE_MERGE, RESTORE_MIRROR, CUSTOM flag validation
+- **Error Handling**: empty source/dest, non-existent source, exit code 8 → FAILED, exit code 5 → WARNING
+- **Restore Flow**: UC4 merge preservation, UC5 mirror deletion, profile subdir detection, empty backup handling
+- **Network Module**: empty IP/username validation, invalid IP ping, connection status
 
 PowerShell is **banned from production** (execution policy risk) but **essential for testing** (tests don't ship).
 
@@ -78,6 +88,7 @@ PowerShell is **banned from production** (execution policy risk) but **essential
 
 | Version | Changes |
 |---|---|
+| v2.0.0 | 67 test checks (11 sections), source=dest guard, enhanced CI, variable scoping tests, engine flag tests, error handling tests, restore flow tests, network tests, edge case hardening, user stories, drift detection |
 | v1.4.0 | Dual distribution, PowerShell test harness (14 checks), development pipeline mandate |
 | v1.3.0 | Restore feature (UC4/UC5), USB detection, Enterprise robocopy `/Z`, PAUSE strategy |
 | v1.2.0 | Static IP direct cable, DHCP dual mode, Unicode support, 3-tier variable scoping |

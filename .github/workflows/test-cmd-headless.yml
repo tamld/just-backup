@@ -11,15 +11,15 @@ on:
       - '.github/workflows/test-cmd-headless.yml'
 
 jobs:
-  test-cmd-batch:
-    name: Static Lint + Worst-Case + Parser Traps + Runtime
+  static-lint:
+    name: Static Lint & Drift Detection
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify test files exist
+      - name: Verify required files exist
         shell: pwsh
         working-directory: cmd_headless
         run: |
@@ -34,18 +34,54 @@ jobs:
           )
           $missing = $files | Where-Object { -not (Test-Path $_) }
           if ($missing.Count -gt 0) {
-            Write-Host "Missing files: $($missing -join ', ')" -ForegroundColor Red
+            Write-Host "::error::Missing files: $($missing -join ', ')"
             exit 1
           }
           Write-Host "All required files present." -ForegroundColor Green
 
-      - name: Run Test Harness (37 checks)
+      - name: Version consistency check
+        shell: pwsh
+        working-directory: cmd_headless
+        run: |
+          $devContent = Get-Content "RoboSync.bat" -Raw
+          $portContent = Get-Content "dist/RoboSync_Portable.bat" -Raw
+
+          $devVer = if ($devContent -match 'APP_VERSION=v([\d.]+)') { $Matches[1] } else { "?" }
+          $portVer = if ($portContent -match 'APP_VERSION=v([\d.]+)') { $Matches[1] } else { "?" }
+
+          Write-Host "Dev version: v$devVer"
+          Write-Host "Portable version: v$portVer"
+
+          if ($devVer -ne $portVer) {
+            Write-Host "::error::Version mismatch! Dev=v$devVer Portable=v$portVer"
+            exit 1
+          }
+          Write-Host "Versions match: v$devVer" -ForegroundColor Green
+
+  runtime-tests:
+    name: Full Test Suite (67 checks)
+    runs-on: windows-latest
+    needs: static-lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Test Harness
         shell: pwsh
         working-directory: cmd_headless
         run: |
           $result = & powershell -ExecutionPolicy Bypass -File test_harness.ps1
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {
-            Write-Host "::error::Test harness failed with $exitCode failures."
+            Write-Host "::error::Test harness failed with $exitCode failure(s)."
           }
           exit $exitCode
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: cmd_headless/logs/
+          if-no-files-found: ignore

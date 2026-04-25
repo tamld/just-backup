@@ -1,6 +1,6 @@
 @echo off
 :: ================================================================
-::   ROBOSYNC PORTABLE v1.3.0 — SINGLE-FILE DISTRIBUTION
+::   ROBOSYNC PORTABLE v2.0.0 — SINGLE-FILE DISTRIBUTION
 ::   Engine : Robocopy  |  Auth : Net Use  |  Format : Pure CMD
 ::
 ::   This is the PRODUCTION build. One file, zero folders.
@@ -1042,6 +1042,13 @@ set "NET_STATUS=NOT_CONNECTED"
     if not exist "!_rc_src!" (
         echo  [!!] Source khong ton tai: !_rc_src!
         set "LAST_RC_STATUS=FAILED"
+        goto :eof
+    )
+    REM Source = Destination guard (prevent self-copy)
+    if "!_rc_src!"=="!_rc_dst!" (
+        echo  [!!] Source and Destination are the same path. Aborting.
+        set "LAST_RC_STATUS=FAILED"
+        set "LAST_RC_CODE=99"
         goto :eof
     )
 
