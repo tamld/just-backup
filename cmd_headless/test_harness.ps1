@@ -1,5 +1,5 @@
 # ================================================================
-# TEST HARNESS v4.0 — Comprehensive CMD Batch Verification
+# TEST HARNESS v4.0 -- Comprehensive CMD Batch Verification
 # PURPOSE: Static lint + Safe runtime + WORST-CASE edge cases
 #          + v2.0 refactor validation + drift detection
 #          + variable scoping + engine flags + error handling
@@ -651,7 +651,7 @@ Write-Result "CUSTOM flags: /MIR fallback" $customResult
 # ================================================================
 Write-Host "`n=== SECTION 7: ERROR HANDLING TESTS ===" -ForegroundColor Cyan
 
-# 7.1: fn_run_robocopy with empty source → FAILED
+# 7.1: fn_run_robocopy with empty source -> FAILED
 $errTest1 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -670,9 +670,9 @@ if "!LAST_RC_STATUS!"=="FAILED" if "!LAST_RC_CODE!"=="99" echo [EMPTY_SRC_PASS]
 $errFile1 = "$Sandbox\test_err_empty_src.bat"
 $errTest1 | Out-File $errFile1 -Encoding ASCII
 $errOut1 = & cmd /c "`"$errFile1`"" 2>&1
-Write-Result "Empty source → FAILED/99" (($errOut1 -join '') -match 'EMPTY_SRC_PASS')
+Write-Result "Empty source -> FAILED/99" (($errOut1 -join '') -match 'EMPTY_SRC_PASS')
 
-# 7.2: fn_run_robocopy with empty dest → FAILED
+# 7.2: fn_run_robocopy with empty dest -> FAILED
 $errTest2 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -689,9 +689,9 @@ if "!LAST_RC_STATUS!"=="FAILED" if "!LAST_RC_CODE!"=="99" echo [EMPTY_DST_PASS]
 $errFile2 = "$Sandbox\test_err_empty_dst.bat"
 $errTest2 | Out-File $errFile2 -Encoding ASCII
 $errOut2 = & cmd /c "`"$errFile2`"" 2>&1
-Write-Result "Empty dest → FAILED/99" (($errOut2 -join '') -match 'EMPTY_DST_PASS')
+Write-Result "Empty dest -> FAILED/99" (($errOut2 -join '') -match 'EMPTY_DST_PASS')
 
-# 7.3: Source path doesn't exist → FAILED
+# 7.3: Source path doesn't exist -> FAILED
 $errTest3 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -706,7 +706,7 @@ if "!LAST_RC_STATUS!"=="FAILED" echo [NOEXIST_SRC_PASS]
 $errFile3 = "$Sandbox\test_err_noexist.bat"
 $errTest3 | Out-File $errFile3 -Encoding ASCII
 $errOut3 = & cmd /c "`"$errFile3`"" 2>&1
-Write-Result "Non-existent source → FAILED" (($errOut3 -join '') -match 'NOEXIST_SRC_PASS')
+Write-Result "Non-existent source -> FAILED" (($errOut3 -join '') -match 'NOEXIST_SRC_PASS')
 
 # 7.4: Robocopy exit code >= 8 means FAILED
 $errTest4 = @'
@@ -725,7 +725,7 @@ if "!LAST_RC_STATUS!"=="FAILED" echo [RC8_FAIL_PASS]
 $errFile4 = "$Sandbox\test_err_rc8.bat"
 $errTest4 | Out-File $errFile4 -Encoding ASCII
 $errOut4 = & cmd /c "`"$errFile4`"" 2>&1
-Write-Result "Exit code 8 → FAILED status" (($errOut4 -join '') -match 'RC8_FAIL_PASS')
+Write-Result "Exit code 8 -> FAILED status" (($errOut4 -join '') -match 'RC8_FAIL_PASS')
 
 # 7.5: Robocopy exit code 4-7 means WARNING
 $errTest5 = @'
@@ -744,14 +744,14 @@ if "!LAST_RC_STATUS!"=="WARNING" echo [RC5_WARN_PASS]
 $errFile5 = "$Sandbox\test_err_rc5.bat"
 $errTest5 | Out-File $errFile5 -Encoding ASCII
 $errOut5 = & cmd /c "`"$errFile5`"" 2>&1
-Write-Result "Exit code 5 → WARNING status" (($errOut5 -join '') -match 'RC5_WARN_PASS')
+Write-Result "Exit code 5 -> WARNING status" (($errOut5 -join '') -match 'RC5_WARN_PASS')
 
 # ================================================================
 # SECTION 8: RESTORE FLOW TESTS (A4)
 # ================================================================
 Write-Host "`n=== SECTION 8: RESTORE FLOW TESTS ===" -ForegroundColor Cyan
 
-# 8.1: UC4 Merge — /E preserves existing files at dest
+# 8.1: UC4 Merge -- /E preserves existing files at dest
 $uc4Src = "$Sandbox\src\uc4_backup"
 $uc4Dst = "$Sandbox\dst\uc4_profile"
 New-Item -ItemType Directory -Path "$uc4Src\Desktop" -Force | Out-Null
@@ -765,7 +765,7 @@ New-Item -ItemType Directory -Path "$uc4Dst\Desktop" -Force | Out-Null
 Write-Result "UC4 Merge: backup file restored" (Test-Path "$uc4Dst\Desktop\restored.txt")
 Write-Result "UC4 Merge: user's new file preserved" (Test-Path "$uc4Dst\Desktop\my_new_work.txt")
 
-# 8.2: UC5 Mirror — /MIR deletes extra at dest
+# 8.2: UC5 Mirror -- /MIR deletes extra at dest
 $uc5Src = "$Sandbox\src\uc5_backup"
 $uc5Dst = "$Sandbox\dst\uc5_mirror"
 New-Item -ItemType Directory -Path $uc5Src -Force | Out-Null
@@ -776,7 +776,7 @@ New-Item -ItemType Directory -Path $uc5Dst -Force | Out-Null
 Write-Result "UC5 Mirror: source file copied" (Test-Path "$uc5Dst\original.txt")
 Write-Result "UC5 Mirror: extra file deleted" (-not (Test-Path "$uc5Dst\should_be_deleted.txt"))
 
-# 8.3: fn_detect_profile_subdirs pattern — known folders detected
+# 8.3: fn_detect_profile_subdirs pattern -- known folders detected
 $subdirSrc = "$Sandbox\src\subdirs"
 foreach ($f in @("Desktop", "Documents", "Downloads", "Pictures", "Videos", "Music")) {
     New-Item -ItemType Directory -Path "$subdirSrc\$f" -Force | Out-Null
@@ -798,7 +798,7 @@ $subdirTest | Out-File $subdirFile -Encoding ASCII
 $subdirOut = & cmd /c "`"$subdirFile`"" 2>&1
 Write-Result "Profile subdir detection (6+ folders)" (($subdirOut -join '') -match 'SUBDIR_DETECT_PASS')
 
-# 8.4: Empty backup folder → SUBDIR_COUNT=0
+# 8.4: Empty backup folder -> SUBDIR_COUNT=0
 $emptyBackup = "$Sandbox\src\empty_backup"
 New-Item -ItemType Directory -Path $emptyBackup -Force | Out-Null
 $emptySubTest = @"
@@ -815,14 +815,14 @@ if !SUBDIR_COUNT! equ 0 echo [EMPTY_SUBDIR_PASS]
 $emptySubFile = "$Sandbox\test_empty_subdirs.bat"
 $emptySubTest | Out-File $emptySubFile -Encoding ASCII
 $emptySubOut = & cmd /c "`"$emptySubFile`"" 2>&1
-Write-Result "Empty backup → SUBDIR_COUNT=0" (($emptySubOut -join '') -match 'EMPTY_SUBDIR_PASS')
+Write-Result "Empty backup -> SUBDIR_COUNT=0" (($emptySubOut -join '') -match 'EMPTY_SUBDIR_PASS')
 
 # ================================================================
-# SECTION 9: NETWORK MODULE TESTS (A5 — safe/mocked)
+# SECTION 9: NETWORK MODULE TESTS (A5 -- safe/mocked)
 # ================================================================
 Write-Host "`n=== SECTION 9: NETWORK MODULE TESTS ===" -ForegroundColor Cyan
 
-# 9.1: Empty IP → INPUT_OK=0
+# 9.1: Empty IP -> INPUT_OK=0
 $netTest1 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -836,9 +836,9 @@ if "!DEST_IP!"=="" (
 $netFile1 = "$Sandbox\test_net_empty_ip.bat"
 $netTest1 | Out-File $netFile1 -Encoding ASCII
 $netOut1 = & cmd /c "`"$netFile1`"" 2>&1
-Write-Result "Empty IP → INPUT_OK=0" (($netOut1 -join '') -match 'EMPTY_IP_PASS')
+Write-Result "Empty IP -> INPUT_OK=0" (($netOut1 -join '') -match 'EMPTY_IP_PASS')
 
-# 9.2: Invalid IP → NET_PING_OK=0 (ping unreachable address)
+# 9.2: Invalid IP -> NET_PING_OK=0 (ping unreachable address)
 $netTest2 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -855,9 +855,9 @@ if not "!_ping_result!"=="OK" (
 $netFile2 = "$Sandbox\test_net_bad_ping.bat"
 $netTest2 | Out-File $netFile2 -Encoding ASCII
 $netOut2 = & cmd /c "`"$netFile2`"" 2>&1
-Write-Result "Invalid IP → NET_PING_OK=0" (($netOut2 -join '') -match 'INVALID_PING_PASS')
+Write-Result "Invalid IP -> NET_PING_OK=0" (($netOut2 -join '') -match 'INVALID_PING_PASS')
 
-# 9.3: Empty username → NET_MAP_OK=0
+# 9.3: Empty username -> NET_MAP_OK=0
 $netTest3 = @'
 @echo off
 setlocal enabledelayedexpansion
@@ -871,7 +871,7 @@ if "!_user!"=="" (
 $netFile3 = "$Sandbox\test_net_empty_user.bat"
 $netTest3 | Out-File $netFile3 -Encoding ASCII
 $netOut3 = & cmd /c "`"$netFile3`"" 2>&1
-Write-Result "Empty username → NET_MAP_OK=0" (($netOut3 -join '') -match 'EMPTY_USER_PASS')
+Write-Result "Empty username -> NET_MAP_OK=0" (($netOut3 -join '') -match 'EMPTY_USER_PASS')
 
 # 9.4: fn_show_status NOT_CONNECTED output
 $netTest4 = @'
@@ -901,7 +901,7 @@ $juncTarget = "$Sandbox\src\junc_target"
 New-Item -ItemType Directory -Path $juncTarget -Force | Out-Null
 "junction_data" | Out-File "$juncTarget\junc_file.txt" -Encoding UTF8
 & cmd /c "mklink /J `"$juncSrc\my_junction`" `"$juncTarget`"" 2>&1 | Out-Null
-# Copy with /XJ — junction should be skipped
+# Copy with /XJ -- junction should be skipped
 & cmd /c "robocopy `"$juncSrc`" `"$juncDst`" /E /XJ /R:0 /W:0 /NP /NFL /NDL 2>&1" | Out-Null
 Write-Result "/XJ skips junction point" (Test-Path "$juncDst\real_folder\data.txt")
 # Junction content should NOT be at dest (junction itself skipped)
@@ -943,12 +943,12 @@ $samePath | Out-File $sameFile -Encoding ASCII
 $sameOut = & cmd /c "`"$sameFile`"" 2>&1
 Write-Result "Source=Dest detection pattern" (($sameOut -join '') -match 'SAME_PATH_DETECTED')
 
-# 10.5: Robocopy with 0 files (empty dir) → exit code 0 or 1
+# 10.5: Robocopy with 0 files (empty dir) -> exit code 0 or 1
 $noFileSrc = "$Sandbox\src\nofiles"
 $noFileDst = "$Sandbox\dst\nofiles"
 New-Item -ItemType Directory -Path $noFileSrc -Force | Out-Null
 & cmd /c "robocopy `"$noFileSrc`" `"$noFileDst`" /E /R:0 /W:0 /NP 2>&1" | Out-Null
-Write-Result "0 files → exit code <= 1" ($LASTEXITCODE -le 1) "ExitCode=$LASTEXITCODE"
+Write-Result "0 files -> exit code <= 1" ($LASTEXITCODE -le 1) "ExitCode=$LASTEXITCODE"
 
 # ================================================================
 # SECTION 11: DRIFT DETECTION EXPANSION (A7)
@@ -984,11 +984,12 @@ if ((Test-Path $Target) -and (Test-Path $DevEntry)) {
             $missingInPort += $var
         }
     }
-    Write-Result "Tier 2 var cleanup parity (Dev↔Portable)" ($missingInPort.Count -eq 0) "Missing in Portable: $($missingInPort -join ', ')"
+    Write-Result "Tier 2 var cleanup parity (Dev vs Portable)" ($missingInPort.Count -eq 0) "Missing in Portable: $($missingInPort -join ', ')"
 
     # 11.2: Backup type count parity (fn_build_flags handles same types)
-    $devTypes = ([regex]::Matches($allDevContent, '(?i)"([A-Z_]+)".*goto :eof')).Count
-    $portTypes = ([regex]::Matches($portContent, '(?i)"([A-Z_]+)".*goto :eof')).Count
+    $typePattern = '(?i)"([A-Z][A-Z0-9_]+)".*goto :eof'
+    $devTypes = ([regex]::Matches($allDevContent, $typePattern)).Count
+    $portTypes = ([regex]::Matches($portContent, $typePattern)).Count
     # Just check both have the 5 types
     $devHasAllTypes = ($allDevContent -match 'RESTORE_MERGE') -and ($allDevContent -match 'RESTORE_MIRROR') -and ($allDevContent -match 'PROFILE') -and ($allDevContent -match 'PARTITION') -and ($allDevContent -match 'USB')
     $portHasAllTypes = ($portContent -match 'RESTORE_MERGE') -and ($portContent -match 'RESTORE_MIRROR') -and ($portContent -match 'PROFILE') -and ($portContent -match 'PARTITION') -and ($portContent -match 'USB')
