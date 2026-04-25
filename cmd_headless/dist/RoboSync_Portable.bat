@@ -252,6 +252,17 @@ set "NET_STATUS=NOT_CONNECTED"
     echo.
     echo  [^>^>] BACKUP PUSH (Local -^> Remote)
     call :fn_separator
+
+    REM Reuse existing network session if available (EC-2.1)
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Using existing connection: !NETWORK_PATH!
+        echo.
+        choice /n /c YN /m "  Continue with this connection? [Y/N]: "
+        if !errorlevel! equ 1 (
+            set "BACKUP_DEST=!NETWORK_PATH!"
+            goto :SelectSource
+        )
+    )
     call :NetworkSetup
     set "BACKUP_DEST=!NETWORK_PATH!"
     goto :SelectSource
@@ -266,7 +277,16 @@ set "NET_STATUS=NOT_CONNECTED"
     echo.
     echo  [^>^>] BACKUP PULL (Remote -^> Local)
     call :fn_separator
-    call :NetworkSetup
+
+    REM Reuse existing network session if available (EC-2.1)
+    if "!NET_STATUS!"=="CONNECTED" (
+        echo  [OK] Using existing connection: !NETWORK_PATH!
+        echo.
+        choice /n /c YN /m "  Continue with this connection? [Y/N]: "
+        if !errorlevel! equ 2 call :NetworkSetup
+    ) else (
+        call :NetworkSetup
+    )
     echo.
     set "BACKUP_DEST="
     set /p "BACKUP_DEST=  Local save path (e.g. D:\Restore): "
@@ -834,10 +854,18 @@ set "NET_STATUS=NOT_CONNECTED"
 
 :fn_restore_dhcp
     if not defined NET_IFACE goto :eof
-    echo  [..] Restoring DHCP on !NET_IFACE!...
+    if "!NET_IFACE!"=="" goto :eof
+    echo  [..] Restoring DHCP on "!NET_IFACE!" ...
     netsh interface ip set address "!NET_IFACE!" dhcp >nul 2>&1
-    echo  [OK] DHCP restored.
+    set "RC=!errorlevel!"
+    netsh interface ip set dns "!NET_IFACE!" dhcp >nul 2>&1
+    if !RC! neq 0 (
+        echo  [!!] Failed to restore DHCP on "!NET_IFACE!". Check manually via ncpa.cpl.
+    ) else (
+        echo  [OK] DHCP restored. Network will obtain new IP.
+    )
     set "NET_IFACE="
+    set "NET_LOCAL_IP="
     goto :eof
 
 :fn_input_credentials
