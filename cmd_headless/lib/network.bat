@@ -281,13 +281,14 @@ exit /b
         goto :eof
     )
 
-    :: Password input (try masked, fallback to plain)
+    :: Password input (try masked, abort if failed)
     echo.
     echo   Enter Password:
     set "NET_PASS="
     for /f "delims=" %%p in ('powershell -Command "[Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host -AsSecureString)))" 2^>nul') do set "NET_PASS=%%p"
     if "!NET_PASS!"=="" (
-        set /p "NET_PASS=  Password (plaintext fallback): "
+        echo  [^!^!] Secure password input failed. Plaintext fallback is disabled for security.
+        goto :eof
     )
 
     set "NETWORK_PATH=\\!DEST_IP!\!DEST_SHARE!"
