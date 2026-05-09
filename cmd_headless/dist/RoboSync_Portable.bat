@@ -861,9 +861,9 @@ set "NET_STATUS=NOT_CONNECTED"
     set "NET_PASS="
     for /f "tokens=*" %%P in ('powershell -Command "$p = Read-Host -AsSecureString; [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p))" 2^>nul') do set "NET_PASS=%%P"
     if "!NET_PASS!"=="" (
-        set /p "NET_PASS=  Password (plaintext fallback): "
+        echo  [^!^!] Secure password input failed. Plaintext fallback is disabled for security.
+        goto :eof
     )
-    if "!NET_PASS!"=="" goto :eof
 
     set "INPUT_OK=1"
     goto :eof
