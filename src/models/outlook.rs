@@ -53,12 +53,11 @@ mod tests {
         let dummy_exe = temp_dir.join("outlook.exe");
 
         // Copy a long-running benign command to "outlook.exe" to simulate the process.
-        // On Unix, `sleep` is ubiquitous. On Windows, `timeout` could work, but since cross-platform testing
-        // can be tricky, we'll try copying the test runner's own executable or `sleep` if available.
+        // On Unix, `sleep` is ubiquitous. On Windows, `ping` is used because `timeout` fails without a console.
         #[cfg(unix)]
         let source_bin = "/bin/sleep";
         #[cfg(windows)]
-        let source_bin = "C:\\Windows\\System32\\timeout.exe"; // Fallback for Windows
+        let source_bin = "C:\\Windows\\System32\\ping.exe"; // Fallback for Windows
 
         if Path::new(source_bin).exists() {
             fs::copy(source_bin, &dummy_exe).expect("Failed to create dummy outlook.exe");
@@ -78,7 +77,7 @@ mod tests {
             cmd.arg("10"); // sleep 10
 
             #[cfg(windows)]
-            cmd.args(&["/T", "10", "/NOBREAK"]);
+            cmd.args(&["127.0.0.1", "-n", "10"]);
 
             let mut child = cmd.spawn().expect("Failed to spawn dummy outlook.exe");
 
