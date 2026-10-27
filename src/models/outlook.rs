@@ -1,4 +1,4 @@
-use sysinfo::{System, Process};
+use sysinfo::System;
 use std::path::Path;
 
 pub fn is_outlook_running() -> bool {
@@ -9,6 +9,18 @@ pub fn is_outlook_running() -> bool {
         if let Some(name) = process.name().to_str() {
             if name.to_lowercase().contains("outlook.exe") {
                 return true;
+            }
+        }
+        if let Some(exe) = process.exe().and_then(|e| e.to_str()) {
+            if exe.to_lowercase().contains("outlook.exe") {
+                return true;
+            }
+        }
+        for arg in process.cmd() {
+            if let Some(s) = arg.to_str() {
+                if s.to_lowercase().contains("outlook.exe") {
+                    return true;
+                }
             }
         }
     }
