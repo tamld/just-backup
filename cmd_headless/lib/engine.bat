@@ -53,6 +53,13 @@ exit /b
         set "LAST_RC_CODE=99"
         goto :eof
     )
+    REM Source = Destination guard (prevent self-copy)
+    if "!_rc_src!"=="!_rc_dst!" (
+        echo  [!!] Source and Destination are the same path. Aborting.
+        set "LAST_RC_STATUS=FAILED"
+        set "LAST_RC_CODE=99"
+        goto :eof
+    )
 
     :: --- Auto-mkdir destination (SRS §5.1) ---
     if not exist "!_rc_dst!" (

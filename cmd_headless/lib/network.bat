@@ -139,8 +139,13 @@ exit /b
 
     echo  [..] Restoring DHCP on "!NET_IFACE!" ...
     netsh interface ip set address "!NET_IFACE!" dhcp >nul 2>&1
+    set "RC=!errorlevel!"
     netsh interface ip set dns "!NET_IFACE!" dhcp >nul 2>&1
-    echo  [OK] DHCP restored. Network will obtain new IP.
+    if !RC! neq 0 (
+        echo  [!!] Failed to restore DHCP on "!NET_IFACE!". Check manually via ncpa.cpl.
+    ) else (
+        echo  [OK] DHCP restored. Network will obtain new IP.
+    )
 
     :: Clear state
     set "NET_IFACE="

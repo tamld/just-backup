@@ -18,6 +18,14 @@ This repository (`just-backup`) is a **Windows CMD/Batch legacy tool** currently
 
 These directives are hardcoded into your behavior. Violating ANY of them triggers immediate failure.
 
+### I0: Git Author Identity (Mandatory)
+All AI Agents (Devin, Claude, Gemini, Cursor, Copilot, Jules, etc.) MUST commit on behalf of the project owner. Every commit MUST use:
+```
+git config user.name "tamld"
+git config user.email "ductam1828@gmail.com"
+```
+**Rationale**: Agents act as tools of the project owner, not independent contributors. The git history must reflect ownership, not delegation. Any commit with a bot/agent identity violates this directive.
+
 ### I1: Language Strictness
 All documentation, GitHub Issues, Pull Request descriptions, and inline code comments **MUST be in 100% English**. No exceptions.
 
